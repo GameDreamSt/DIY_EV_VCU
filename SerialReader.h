@@ -1,0 +1,3 @@
+
+void InitializeSerialReader();
+void TickSerialReader();
