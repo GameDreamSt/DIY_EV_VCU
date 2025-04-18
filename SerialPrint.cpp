@@ -1,10 +1,13 @@
 
 #include "SerialPrint.h"
+#include "Timer.h"
 #include <Arduino.h>
 
-#define MAX_MESSAGES 5
+#define MAX_MESSAGES 8
 
 String messages[MAX_MESSAGES]; // TODO: calculate the hash for pending messages and do not queue the same ones
+Timer maxMsgCountTimer = Timer(1);
+bool triggerMaxMsgCount;
 
 void PrintSerialMessage(String outputMsg)
 {
@@ -17,7 +20,7 @@ void PrintSerialMessage(String outputMsg)
         }
     }
 
-    Serial.print("Max msg count reached! Increase the baud rate or reduce msg count!\n");
+    triggerMaxMsgCount = true;
 }
 
 void PrintSerialMessageHEX(String message, int hexData)
@@ -115,6 +118,13 @@ int bytesWritten = 0;
 
 void TickSerialWriter()
 {
+    if (triggerMaxMsgCount && maxMsgCountTimer.HasTriggered())
+    {
+        triggerMaxMsgCount = false;
+        Serial.print("Max msg count reached! Increase the baud rate or reduce msg count!\n");
+        return;
+    }
+
     int bytesAvailable = Serial.availableForWrite();
     if (bytesAvailable == 0)
         return;
@@ -138,7 +148,7 @@ void TickSerialWriter()
     char *ptr = messages[currentMessageIndex].begin() + bytesWritten;
     if (bytesToWrite > bytesAvailable)
         bytesToWrite = bytesAvailable;
-        
+
     bytesWritten += Serial.write(ptr, bytesToWrite);
 
     if (bytesWritten >= stringLength)
