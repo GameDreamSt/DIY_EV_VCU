@@ -200,6 +200,14 @@ void ResetEngine()
     VCU::ResetEngine();
 }
 
+void TogglePDMCAN()
+{
+    if(VCU::TogglePDMCAN())
+        PrintSerialMessage("PDM CAN enabled");
+    else
+        PrintSerialMessage("PDM CAN disabled");
+}
+
 void InitializeSerialReader()
 {
     commandPointers.push_back(CommandPointer("help", OutputHelp));
@@ -211,6 +219,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
     commandPointers.push_back(CommandPointer("resetengine", ResetEngine));
+    commandPointers.push_back(CommandPointer("togglepdmcan", TogglePDMCAN));
 }
 
 #define INPUT_BUFFER_SIZE 64

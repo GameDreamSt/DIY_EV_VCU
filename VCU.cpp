@@ -78,6 +78,14 @@ bool ToggleGen2Codes()
     return gen2Codes;
 }
 
+// For PDM failsafe testing.
+bool PDM_CAN_Enabled = true;
+bool TogglePDMCAN()
+{
+    PDM_CAN_Enabled = !PDM_CAN_Enabled;
+    return PDM_CAN_Enabled;
+}
+
 float resetEngineTime = 0;
 void ResetEngine()
 {
@@ -533,7 +541,8 @@ void Msgs10ms()
     if (counter_1dc >= 4)
         counter_1dc = 0;
 
-    can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+    if(PDM_CAN_Enabled)
+        can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
@@ -604,7 +613,8 @@ void Msgs10ms()
     if (counter_1f2 >= 4)
         counter_1f2 = 0;
 
-    can->Transmit(MsgID::CmdDCToDC, 8, outFrame);
+    if(PDM_CAN_Enabled)
+        can->Transmit(MsgID::CmdDCToDC, 8, outFrame);
 
     SendHeartBeat();
 }
@@ -633,7 +643,8 @@ void Msgs100ms()
     if (counter_55b >= 4)
         counter_55b = 0;
 
-    can->Transmit(MsgID::CmdSOC, 8, outFrame);
+    if(PDM_CAN_Enabled)
+        can->Transmit(MsgID::CmdSOC, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x59E:
@@ -647,7 +658,8 @@ void Msgs100ms()
     outFrame[6] = 0x00;
     outFrame[7] = 0x00;
 
-    can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
+    if(PDM_CAN_Enabled)
+        can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x5BC:
@@ -662,7 +674,8 @@ void Msgs100ms()
     outFrame[6] = 0x00;
     outFrame[7] = 0x32;
 
-    can->Transmit(MsgID::CmdChargeStatus, 8, outFrame);
+    if(PDM_CAN_Enabled)
+        can->Transmit(MsgID::CmdChargeStatus, 8, outFrame);
 
     SendHeartBeat();
 }

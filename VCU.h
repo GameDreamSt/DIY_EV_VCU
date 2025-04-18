@@ -37,6 +37,7 @@ namespace VCU
     void ToggleThrottlePrint();
 
     bool ToggleGen2Codes();
+    bool TogglePDMCAN();
     void ResetEngine();
 
     bool IsIgnitionOn();
