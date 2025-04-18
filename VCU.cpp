@@ -40,6 +40,10 @@ float powerLimitOut = 3; // In kw
 float powerLimitIn = 0;  // In kw (from regen braking)
 float chargingLimit = 0; // In kw (from plug)
 
+float OBC_AC_Voltage = 0;
+float OBCActivePower = 0;
+float OBCAvailablePower = 0;
+
 ushort ThrotVal = 0; // analog value of throttle position.
 
 const short MaxTorque = 20; // Max torque request is 1120
@@ -574,14 +578,14 @@ void Msgs10ms()
 
     /*
     Byte 2:
-    00000b = Quick charge
-    00101b = Normal Charge 6kw Full charge
-    01000b = Normal Charge 200V Full charge
-    01011b = Normal Charge 100V Full charge
-    10010b = Normal Charge 6kw long life charge
-    10101b = Normal Charge 200V long life charge
-    11000b = Normal Charge 100V long life charge
-    11111b = Invalid value
+    00000b 0x0 = Quick charge
+    00101b 0x5 = Normal Charge 6kw Full charge
+    01000b 0x8 = Normal Charge 200V Full charge
+    01011b 0xB = Normal Charge 100V Full charge
+    10010b 0x12 = Normal Charge 6kw long life charge
+    10101b 0x15 = Normal Charge 200V long life charge
+    11000b 0x18 = Normal Charge 100V long life charge
+    11111b 0x1F = Invalid value
     */
 
     // Commanded chg power in byte 1 and byte 0 bits 0-1. 10 bit number.
@@ -730,6 +734,7 @@ void ReadCAN()
     memcpy(inFrame, recvFrame.data, recvFrame.can_dlc);
 
     short parsed_speed, torque, rpm;
+    byte OBCVoltageStatus;
 
     // Handle CAN message
     switch (messageType)
@@ -759,18 +764,28 @@ void ReadCAN()
         break;
 
     case MsgID::RcvPlugStatus:
-        // OBCVoltStat = (inFrame[3] >> 3) & 0x03;
+        OBCVoltageStatus = (inFrame[3] >> 3) & 0x03; // Plug voltage
+        OBCActivePower = inFrame[1] * 0.1f; // Power in 0.1kW
+        OBCAvailablePower = inFrame[6] * 0.1f; // Power in 0.1kW
+
+        if(OBCVoltageStatus == 0x1)
+            OBC_AC_Voltage = 110;
+        else if(OBCVoltageStatus == 0x2)
+            OBC_AC_Voltage = 230;
+        else
+            OBC_AC_Voltage = 0;
+
         if (inFrame[5] & 0x0F == 0x08)
         {
             if (!plugInserted)
                 PrintSerialMessage("Charging plug inserted");
-            plugInserted = true; // plug inserted
+            plugInserted = true;
         }
         if (inFrame[5] & 0x0F == 0x00)
         {
             if (plugInserted)
                 PrintSerialMessage("Charging plug disconnected");
-            plugInserted = false; // plug not inserted
+            plugInserted = false;
         }
         break;
 
