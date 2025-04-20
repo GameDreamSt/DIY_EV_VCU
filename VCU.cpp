@@ -46,7 +46,8 @@ float OBCAvailablePower = 0;
 
 ushort ThrotVal = 0; // analog value of throttle position.
 
-const short MaxTorque = 20; // Max torque request is 1120
+#define MAX_TORQUE 1120 // Max torque request is 1120
+short MaxTorque = 50;
 short final_torque_request = 0;
 short torqueRequestOverride = 0;
 void SetFinalTorqueRequest(short value)
@@ -58,6 +59,18 @@ void SetFinalTorqueRequest(short value)
     }
     else
         torqueRequestOverride = value;
+}
+
+bool SetMaxTorqueRequest(short value)
+{
+    if(value > MAX_TORQUE)
+    {
+        PrintSerialMessage("Torque requested is above max torque of " + ToString(MAX_TORQUE) + "!");
+        return false;
+    }
+
+    MaxTorque = value;
+    return true;
 }
 
 void SetBatteryDischargeLimit(float kilowatts)

@@ -151,6 +151,19 @@ void SetTorque()
     VCU::SetFinalTorqueRequest(request);
 }
 
+void SetMaxTorque()
+{
+    if (parameters.size() == 0)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    short request = parameters[0].toInt();
+    if(VCU::SetMaxTorqueRequest(request))
+        PrintSerialMessage("Torque set to " + ToString(request));
+}
+
 void OutputHelp()
 {
     String outputStr = "Available commands:\n";

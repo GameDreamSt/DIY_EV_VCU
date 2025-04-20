@@ -33,6 +33,7 @@ namespace VCU
     InverterStatus GetInverterStatus();
 
     void SetFinalTorqueRequest(short value);
+    bool SetMaxTorqueRequest(short value);
     void SetBatteryDischargeLimit(float kilowatts);
     void ToggleThrottlePrint();
 
