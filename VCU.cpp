@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #include "CAN.h"
-#include "Pinout.h"
+#include "Contactor.h"
 #include "SerialPrint.h"
 #include "Throttle.h"
 #include "Timer.h"
@@ -180,6 +180,43 @@ void NissanCRC(byte *data)
     data[7] = crc;
 }
 
+ContactorTest contactorTest;
+
+void SetContactor(int pinID, bool state)
+{
+    switch(pinID)
+    {
+        case PIN_PRECHARGE:
+            digitalWrite(PIN_PRECHARGE, state || contactorTest == ContactorTest::Precharge ? HIGH : LOW);
+        break;
+
+        case PIN_POS_CONTACTOR:
+            digitalWrite(PIN_POS_CONTACTOR, state || contactorTest == ContactorTest::Positive ? HIGH : LOW);
+        break;
+
+        /*case PIN_NEG_CONTACTOR:
+            digitalWrite(PIN_NEG_CONTACTOR, state || contactorTest == ContactorTest::Negative ? HIGH : LOW);
+        break;*/
+
+        case PIN_INV_POWER:
+            digitalWrite(PIN_INV_POWER, state || contactorTest == ContactorTest::Motor ? HIGH : LOW);
+        break;
+    }
+}
+
+void SetContactorForTesting(int value)
+{
+    ContactorTest enumValue = (ContactorTest)value;
+
+    if(enumValue != ContactorTest::None)
+        SetContactor((int)contactorTest, false);
+
+    contactorTest = enumValue;
+
+    if(enumValue != ContactorTest::None)
+        SetContactor((int)contactorTest, true);
+}
+
 bool initialized = false;
 void Initialize()
 {
@@ -194,9 +231,9 @@ void Initialize()
     pinMode(PIN_POS_CONTACTOR, OUTPUT);
     pinMode(PIN_INV_POWER, OUTPUT);
 
-    digitalWrite(PIN_PRECHARGE, LOW);
-    digitalWrite(PIN_POS_CONTACTOR, LOW);
-    digitalWrite(PIN_INV_POWER, LOW);
+    SetContactor(PIN_PRECHARGE, false);
+    SetContactor(PIN_POS_CONTACTOR, false);
+    SetContactor(PIN_INV_POWER, false);
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
@@ -246,9 +283,9 @@ void HighVoltageControl()
 {
     if (!ignitionOn || prechargeFailure) // || inverterStatus.batteryVoltage < LOWEST_VOLTAGE
     {
-        digitalWrite(PIN_PRECHARGE, LOW);
-        digitalWrite(PIN_POS_CONTACTOR, LOW);
-        digitalWrite(PIN_INV_POWER, LOW);
+        SetContactor(PIN_PRECHARGE, false);
+        SetContactor(PIN_POS_CONTACTOR, false);
+        SetContactor(PIN_INV_POWER, false);
         ClearHVData();
         return;
     }
@@ -265,10 +302,10 @@ void HighVoltageControl()
     if (resetEngineTime > 0)
     {
         resetEngineTime -= HVTimerTime;
-        digitalWrite(PIN_INV_POWER, LOW);
+        SetContactor(PIN_INV_POWER, false);
     }
     else
-        digitalWrite(PIN_INV_POWER, HIGH);
+        SetContactor(PIN_INV_POWER, true);
 
     // float voltageDifference = abs(inverterStatus.inverterVoltage - inverterStatus.batteryVoltage);
 
@@ -282,16 +319,16 @@ void HighVoltageControl()
 
     if (lastInverterVoltageTime <= 2 || lastInverterVoltage < LOWEST_VOLTAGE) // Must be within 20V and above 180V
     {
-        digitalWrite(PIN_POS_CONTACTOR, LOW);
-        digitalWrite(PIN_PRECHARGE, HIGH);
+        SetContactor(PIN_POS_CONTACTOR, false);
+        SetContactor(PIN_PRECHARGE, true);
         prechargeToFailureTime += HVTimerTime;
         return;
     }
 
     prechargeToFailureTime = 0;
     prechargeComplete = true;
-    digitalWrite(PIN_POS_CONTACTOR, HIGH);
-    digitalWrite(PIN_PRECHARGE, LOW);
+    SetContactor(PIN_POS_CONTACTOR, true);
+    SetContactor(PIN_PRECHARGE, false);
 }
 
 void SendHeartBeat()

@@ -42,4 +42,6 @@ namespace VCU
     void ResetEngine();
 
     bool IsIgnitionOn();
+
+    void SetContactorForTesting(int value);
 }

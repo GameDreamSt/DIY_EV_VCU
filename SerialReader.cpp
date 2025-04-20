@@ -1,11 +1,12 @@
 
 #include "SerialReader.h"
-
-#include "CAN.h"
 #include "SerialPrint.h"
+#include "Contactor.h"
 #include "Throttle.h"
 #include "Timer.h"
 #include "VCU.h"
+#include "CAN.h"
+
 #include <Arduino.h>
 
 #include <vector>
@@ -221,6 +222,30 @@ void TogglePDMCAN()
         PrintSerialMessage("PDM CAN disabled");
 }
 
+void SetContactor()
+{
+    if (parameters.size() == 0)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    String state = parameters[0];
+    ToLower(state);
+
+    ContactorTest test = ContactorTest::None;
+    if(state == "+" || state == "positive")
+        test = ContactorTest::Positive;
+    else if(state == "-" || state == "negative")
+        test = ContactorTest::Negative;
+    else if(state == "p" || state == "precharge")
+        test = ContactorTest::Precharge;
+    else if(state == "m" || state == "motor")
+        test = ContactorTest::Motor;
+
+    VCU::SetContactorForTesting((int)test);
+}
+
 void InitializeSerialReader()
 {
     commandPointers.push_back(CommandPointer("help", OutputHelp));
@@ -234,6 +259,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
     commandPointers.push_back(CommandPointer("resetengine", ResetEngine));
     commandPointers.push_back(CommandPointer("togglepdmcan", TogglePDMCAN));
+    commandPointers.push_back(CommandPointer("testcontactor", SetContactor));
 }
 
 #define INPUT_BUFFER_SIZE 64
