@@ -227,6 +227,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("status", OutputStatus));
     commandPointers.push_back(CommandPointer("printcan", PrintCan));
     commandPointers.push_back(CommandPointer("torque", SetTorque));
+    commandPointers.push_back(CommandPointer("maxtorque", SetMaxTorque));
     commandPointers.push_back(CommandPointer("dischargekw", DischargeKw));
     commandPointers.push_back(CommandPointer("throttleout", GetThrottle));
     commandPointers.push_back(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
