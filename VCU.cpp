@@ -34,8 +34,8 @@ Timer throttlePrintTimer = Timer(0.1f);
 
 ThrottleManager throttleManager = ThrottleManager();
 
-#define LOWEST_VOLTAGE 180
-#define MAX_CHARGE_VOLTAGE 240
+#define LOWEST_VOLTAGE 210
+#define MAX_CHARGE_VOLTAGE 249
 float powerLimitOut = 3; // In kw
 float powerLimitIn = 0;  // In kw (from regen braking)
 float chargingLimit = 0; // In kw (from plug)
@@ -81,6 +81,8 @@ void SetBatteryDischargeLimit(float kilowatts)
 }
 
 bool ignitionOn;
+bool driveMode;
+
 bool can_status;
 bool plugInserted;
 
@@ -97,12 +99,6 @@ bool TogglePDMCAN()
 {
     PDM_CAN_Enabled = !PDM_CAN_Enabled;
     return PDM_CAN_Enabled;
-}
-
-float resetEngineTime = 0;
-void ResetEngine()
-{
-    resetEngineTime = 1;
 }
 
 InverterStatus inverterStatus;
@@ -194,12 +190,11 @@ void SetContactor(int pinID, bool state)
             digitalWrite(PIN_POS_CONTACTOR, state || contactorTest == ContactorTest::Positive ? HIGH : LOW);
         break;
 
-        /*case PIN_NEG_CONTACTOR:
+        case PIN_NEG_CONTACTOR:
             digitalWrite(PIN_NEG_CONTACTOR, state || contactorTest == ContactorTest::Negative ? HIGH : LOW);
-        break;*/
+        break;
 
-        case PIN_INV_POWER:
-            digitalWrite(PIN_INV_POWER, state || contactorTest == ContactorTest::Motor ? HIGH : LOW);
+        default:
         break;
     }
 }
@@ -225,15 +220,17 @@ void Initialize()
     initialized = true;
 
     pinMode(DEBUG_LED, OUTPUT);
-    pinMode(PIN_Brake, INPUT);
-    pinMode(PIN_IGNITION, INPUT);
+
+    pinMode(PIN_IGNITION, INPUT_PULLUP);
+    pinMode(PIN_DRIVE_MODE, INPUT_PULLUP);
+
     pinMode(PIN_PRECHARGE, OUTPUT);
     pinMode(PIN_POS_CONTACTOR, OUTPUT);
-    pinMode(PIN_INV_POWER, OUTPUT);
+    pinMode(PIN_NEG_CONTACTOR, OUTPUT);
 
     SetContactor(PIN_PRECHARGE, false);
     SetContactor(PIN_POS_CONTACTOR, false);
-    SetContactor(PIN_INV_POWER, false);
+    SetContactor(PIN_NEG_CONTACTOR, false);
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
@@ -262,7 +259,7 @@ bool IsIgnitionOn()
 
 void CheckIgnition()
 {
-    if (digitalRead(PIN_IGNITION))
+    if (!digitalRead(PIN_IGNITION)) // PIN ON : INPUT_PULLUP
     {
         if (!ignitionOn)
             PrintSerialMessage("Ignition on");
@@ -279,13 +276,29 @@ void CheckIgnition()
     }
 }
 
+void CheckDriveMode()
+{
+    if (ignitionOn && !digitalRead(PIN_DRIVE_MODE)) // PIN ON : INPUT_PULLUP
+    {
+        if (!driveMode)
+            PrintSerialMessage("Drive mode on");
+        driveMode = true;
+    }
+    else if(!ignitionOn)
+    {
+        if (driveMode)
+            PrintSerialMessage("Drive mode off");
+        driveMode = false;
+    }
+}
+
 void HighVoltageControl()
 {
     if (!ignitionOn || prechargeFailure) // || inverterStatus.batteryVoltage < LOWEST_VOLTAGE
     {
         SetContactor(PIN_PRECHARGE, false);
         SetContactor(PIN_POS_CONTACTOR, false);
-        SetContactor(PIN_INV_POWER, false);
+        SetContactor(PIN_NEG_CONTACTOR, false);
         ClearHVData();
         return;
     }
@@ -298,14 +311,6 @@ void HighVoltageControl()
         prechargeFailure = true;
         return;
     }
-
-    if (resetEngineTime > 0)
-    {
-        resetEngineTime -= HVTimerTime;
-        SetContactor(PIN_INV_POWER, false);
-    }
-    else
-        SetContactor(PIN_INV_POWER, true);
 
     // float voltageDifference = abs(inverterStatus.inverterVoltage - inverterStatus.batteryVoltage);
 
@@ -320,6 +325,7 @@ void HighVoltageControl()
     if (lastInverterVoltageTime <= 2 || lastInverterVoltage < LOWEST_VOLTAGE) // Must be within 20V and above 180V
     {
         SetContactor(PIN_POS_CONTACTOR, false);
+        SetContactor(PIN_NEG_CONTACTOR, true);
         SetContactor(PIN_PRECHARGE, true);
         prechargeToFailureTime += HVTimerTime;
         return;
@@ -328,6 +334,7 @@ void HighVoltageControl()
     prechargeToFailureTime = 0;
     prechargeComplete = true;
     SetContactor(PIN_POS_CONTACTOR, true);
+    SetContactor(PIN_NEG_CONTACTOR, true);
     SetContactor(PIN_PRECHARGE, false);
 }
 
@@ -740,13 +747,12 @@ void ReadPedals()
 {
     float normalizedThrottle = throttleManager.GetNormalizedThrottle();
 
-    ThrotVal = MaxTorque * normalizedThrottle;
-    // if(digitalRead(PIN_Brake)) ThrotVal = 0; // if brake is pressed we zero the throttle value.
-
     if (torqueRequestOverride != 0)
         final_torque_request = torqueRequestOverride;
+    else if(driveMode)
+        final_torque_request = MaxTorque * normalizedThrottle;
     else
-        final_torque_request = ThrotVal;
+        final_torque_request = 0;
 }
 
 static float FahrenheitToCelsius(unsigned char fahrenheitRawValue)
@@ -886,6 +892,7 @@ void Tick()
     ReadPedals();
 
     CheckIgnition();
+    CheckDriveMode();
 
     if (TimerHV.HasTriggered())
         HighVoltageControl();

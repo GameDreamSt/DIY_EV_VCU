@@ -39,7 +39,6 @@ namespace VCU
 
     bool ToggleGen2Codes();
     bool TogglePDMCAN();
-    void ResetEngine();
 
     bool IsIgnitionOn();
 

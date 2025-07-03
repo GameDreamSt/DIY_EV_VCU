@@ -209,11 +209,6 @@ void ToggleGen2()
         PrintSerialMessage("Gen 1 CAN codes selected");
 }
 
-void ResetEngine()
-{
-    VCU::ResetEngine();
-}
-
 void TogglePDMCAN()
 {
     if(VCU::TogglePDMCAN())
@@ -240,8 +235,6 @@ void SetContactor()
         test = ContactorTest::Negative;
     else if(state == "p" || state == "precharge")
         test = ContactorTest::Precharge;
-    else if(state == "m" || state == "motor")
-        test = ContactorTest::Motor;
 
     VCU::SetContactorForTesting((int)test);
 }
@@ -257,7 +250,6 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("throttleout", GetThrottle));
     commandPointers.push_back(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
-    commandPointers.push_back(CommandPointer("resetengine", ResetEngine));
     commandPointers.push_back(CommandPointer("togglepdmcan", TogglePDMCAN));
     commandPointers.push_back(CommandPointer("testcontactor", SetContactor));
 }

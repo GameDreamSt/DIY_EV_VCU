@@ -9,14 +9,15 @@
 #define DEBUG_LED LED_BUILTIN // onboard DEBUG_LED for diagnosis
 
 // DIGITAL
-#define MKRCAN_MCP2515_INT_PIN 2 // CAN Interrupt
-#define PIN_Brake 3              // Brake pedal
-#define PIN_IGNITION 4           // Is ignition on?
-#define PIN_PRECHARGE 5          // Precharge relay control
-#define PIN_POS_CONTACTOR 6      // Positive contactor control (negative is assumed to be always on)
-#define PIN_INV_POWER 7          // Inverter + Power Delivery Module 12V relay
+#define PIN_IGNITION 2          // Constant 12V from car key ignition
+#define PIN_DRIVE_MODE 3        // Single pulse of 12V from car key starter signal
+#define PIN_PRECHARGE 4         // Precharge relay control
+#define PIN_POS_CONTACTOR 5     // Positive contactor control
+#define PIN_NEG_CONTACTOR 6     // Negative contactor control
+#define PIN_AUX_CONTROL 7       // Some other 12V 5A control
 
 #define MKRCAN_MCP2515_CS_PIN 10 // Slave Select pin (SS) /	Chip Select Pin (CS)
+#define MKRCAN_MCP2515_INT_PIN 11 // Interrupt pin for CAN messages (not used)
 
 // ANALOG TO DIGITAL
 #define APIN_BAT_VOLT A0  // Battery voltage (Currently not used since first experiments fried my board... We read the voltage from the Inverter)

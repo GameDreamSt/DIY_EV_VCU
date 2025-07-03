@@ -5,7 +5,6 @@ enum ContactorTest
 {
     None = 0,
     Precharge = PIN_PRECHARGE,
-    Negative = -1, // Always on for now!
+    Negative = PIN_NEG_CONTACTOR,
     Positive = PIN_POS_CONTACTOR,
-    Motor = PIN_INV_POWER,
 };
