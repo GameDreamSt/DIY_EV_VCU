@@ -5,6 +5,9 @@
 #include <Arduino.h>
 
 #define READ_AVG 50
+#define DEADZONE_LOW 0.05
+#define DEADZONE_HIGH 0.95
+
 int floatSize = sizeof(float);
 
 bool Throttle::printDetailedLog = false;
@@ -73,6 +76,11 @@ float remap01(float x, float in_min, float in_max)
     return (x - in_min) / (in_max - in_min);
 }
 
+float clamp(float x, float a, float b)
+{
+  return fmax(a, fmin(b, x));
+}
+
 float Throttle::GetNormalizedThrottle()
 {
     // Safety:
@@ -81,12 +89,10 @@ float Throttle::GetNormalizedThrottle()
     if (beingCalibrated || abs(highestValue - lowestValue) < 0.25f)
         return 0;
 
-    float normalizedValue = remap01(currentThrottle, lowestValue, highestValue);
-
-    if (normalizedValue < 0.01f) // 1% deadzone
-        normalizedValue = 0;
-    else if (normalizedValue > 1)
-        normalizedValue = 1;
+    float normalizedValue = remap01(currentThrottle, lowestValue, highestValue); // voltage remap from lowest to highest calibrated values
+    normalizedValue = remap01(normalizedValue, DEADZONE_LOW, DEADZONE_HIGH); // deadzone remap
+    normalizedValue = clamp(normalizedValue, 0, 1);
+    // Apply throttle filters here, otherwise it's going to be linear
 
     return normalizedValue;
 }
