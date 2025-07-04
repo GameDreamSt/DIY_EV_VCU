@@ -9,8 +9,8 @@
 #define DEBUG_LED LED_BUILTIN // onboard DEBUG_LED for diagnosis
 
 // DIGITAL
-#define PIN_IGNITION 2          // Constant 12V from car key ignition
-#define PIN_DRIVE_MODE 3        // Single pulse of 12V from car key starter signal
+#define PIN_DRIVE_MODE 2        // Single pulse of 12V from car key starter signal
+#define PIN_IGNITION 3          // Constant 12V from car key ignition
 #define PIN_PRECHARGE 4         // Precharge relay control
 #define PIN_POS_CONTACTOR 5     // Positive contactor control
 #define PIN_NEG_CONTACTOR 6     // Negative contactor control
