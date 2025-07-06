@@ -247,8 +247,7 @@ float lastInverterVoltageTime;
 void ClearHVData()
 {
     lastInverterVoltageTime = lastInverterVoltage = prechargeToFailureTime = 0;
-    if (!ignitionOn)
-        prechargeFailure = prechargeComplete = false;
+    prechargeFailure = prechargeComplete = false;
     inverterStatus.inverterVoltage = 0;
 }
 
@@ -749,7 +748,7 @@ void ReadPedals()
 
     if (torqueRequestOverride != 0)
         final_torque_request = torqueRequestOverride;
-    else if(driveMode)
+    else if(driveMode && prechargeComplete)
         final_torque_request = MaxTorque * normalizedThrottle;
     else
         final_torque_request = 0;
