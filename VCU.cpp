@@ -47,7 +47,7 @@ float OBCAvailablePower = 0;
 ushort ThrotVal = 0; // analog value of throttle position.
 
 #define MAX_TORQUE 1120 // Max torque request is 1120
-short MaxTorque = 50;
+short MaxTorque = 650;
 short final_torque_request = 0;
 short torqueRequestOverride = 0;
 void SetFinalTorqueRequest(short value)
