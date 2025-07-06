@@ -131,10 +131,10 @@ void PrintInverterStatus()
     InverterStatus status = VCU::GetInverterStatus();
 
     String str = "EV status:\nPDM model mode: " + PDMModelTypeToString(status.PDMModelType) +
-                 "\nInverter voltage: " + ToString(status.inverterVoltage) + "V " + "\nRPM: " + ToString(status.rpm) +
-                 "\nMotor torque: " + ToString(status.motorTorque) + "\nMotor power: " + ToString(status.motorPower) +
-                 "\nInverter temperature: " + FloatToString(status.inverter_temperature, 2) + "C " +
-                 "\nMotor temperature: " + FloatToString(status.motor_temperature, 2) + "C " +
+                 "\nInverter voltage: " + ToString(status.inverterVoltage) + " V " + "\nRPM: " + ToString(status.rpm) +
+                 "\nMotor torque: " + ToString(status.motorTorque) + " nm\nMotor power: " + FloatToString(status.motorPower, 1) + " kw"
+                 "\nInverter temperature: " + FloatToString(status.inverter_temperature, 2) + " C " +
+                 "\nMotor temperature: " + FloatToString(status.motor_temperature, 2) + " C " +
                  "\nIs in error state: " + BoolToString(status.error_state);
 
     PrintSerialMessage(str);

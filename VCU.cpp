@@ -822,7 +822,7 @@ void ReadCAN()
         inverterStatus.rpm = rpm / 2;
 
         // torque (Nm) to power (W) = 2 x pi / 60 * rpm * torque
-        inverterStatus.motorPower = rpm * torque * 0.10472f / 1000.0f;
+        inverterStatus.motorPower = rpm * torque / 9548.8f;
 
         inverterStatus.error_state = (inFrame[6] & 0xb0) != 0x00;
         break;
