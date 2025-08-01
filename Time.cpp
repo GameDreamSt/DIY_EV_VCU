@@ -1,8 +1,8 @@
 
 #include "Time.h"
-#include <Arduino.h>
 
-unsigned long lastMicroSeconds = 0;
+uint64_t lastMicroSeconds = 0;
+uint64_t microsecondsFromStart = 0;
 float currentDeltaTime = 0;
 
 float GetDeltaTime()
@@ -10,14 +10,28 @@ float GetDeltaTime()
     return currentDeltaTime;
 }
 
+float GetTime()
+{
+    return microsecondsFromStart / 1000000.0f;
+}
+
+uint64_t GetTimeMicroseconds()
+{
+    return microsecondsFromStart;
+}
+
 void TickTime()
 {
-    unsigned long currentMicroseconds = micros();
+    uint64_t currentMicroseconds = micros();
+    uint64_t microsecondsDelta = currentMicroseconds - lastMicroSeconds;
 
-    if (currentMicroseconds < lastMicroSeconds)
-        currentDeltaTime = 0; // Looped over
+    if (currentMicroseconds < lastMicroSeconds) // Looped over
+    {
+        currentDeltaTime = 0;
+        microsecondsDelta = 0;
+    }
     else
-        currentDeltaTime = (currentMicroseconds - lastMicroSeconds) / 1000000.0f;
+        currentDeltaTime = microsecondsDelta / 1000000.0f;
 
-    lastMicroSeconds = currentMicroseconds;
+    microsecondsFromStart += microsecondsDelta;
 }
