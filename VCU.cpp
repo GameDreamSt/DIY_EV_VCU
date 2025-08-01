@@ -118,7 +118,7 @@ enum MsgID
     RcvTempF = 0x55A,
 
     // PDM
-    CmdPowerLimits = 0x1DC,
+    CmdPowerLimits = 0x1DC, // From BMS, but for now, spoof it
     CmdDCToDC = 0x1F2,
     CmdSOC = 0x55B,
     CmdBatteryCapacity = 0x59E,
@@ -244,11 +244,14 @@ bool prechargeComplete = false;
 float lastInverterVoltage;
 float lastInverterVoltageTime;
 
+bool IsPDMEnabled() { return prechargeComplete && PDM_CAN_Enabled; }
+
 void ClearHVData()
 {
     lastInverterVoltageTime = lastInverterVoltage = prechargeToFailureTime = 0;
     prechargeFailure = prechargeComplete = false;
     inverterStatus.inverterVoltage = 0;
+    inverterStatus.error_state = false;
 }
 
 bool IsIgnitionOn()
@@ -356,9 +359,92 @@ void SendHeartBeat()
     can->Transmit((int)MsgID::CmdHeartBeat, 7, outFrame);
 }
 
+void Msgs10msPDM()
+{
+    if(!IsPDMEnabled())
+        return;
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // 0x1dc from lbc. Contains chg power lims and disch power lims.
+    // Disch power lim in byte 0 and byte 1 bits 6-7. Just set to max for now.
+    // Max charging power in bits 13-20. 10 bit unsigned scale 0.25.Byte 1 limit in kw.
+
+    static byte counter_1dc = 0;
+
+    ushort tmp_powerLimitOut = powerLimitOut * 4;  // X
+    ushort tmp_powerLimitIn = powerLimitIn * 4;    // Y
+    ushort tmp_chargingLimit = chargingLimit * 10; // Z
+
+    outFrame[0] = tmp_powerLimitOut >> 2;                         // 00XX XXXX
+    outFrame[1] = tmp_powerLimitOut << 6 | tmp_powerLimitIn >> 2; // XXYY YYYY
+    outFrame[2] = tmp_powerLimitIn << 4 | tmp_chargingLimit >> 6; // YYYY 00ZZ
+    outFrame[3] = tmp_chargingLimit << 2;                         // ZZZZ ZZ00
+    outFrame[4] = 0x00;
+    outFrame[5] = 0x00;
+    outFrame[6] = counter_1dc;
+
+    // Extra CRC in byte 7
+    NissanCRC(outFrame);
+
+    counter_1dc++;
+    if (counter_1dc >= 4)
+        counter_1dc = 0;
+
+    //can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
+    // convert power setpoint to PDM format:
+    //    0x70 = 3 amps ish
+    //    0x6a = 1.4A
+    //    0x66 = 0.5A
+    //    0x65 = 0.3A
+    //    0x64 = no chg
+    //    so 0x64=100. 0xA0=160. so 60 decimal steps. 1 step=100W???
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    // get actual voltage and voltage setpoints
+    int calcBMSpwr = chargingLimit * 1000; // BMS charge current limit but needs to be power for most AC charger types.
+
+    static byte OBCpwr = 0x64;
+    byte OBCpwrSP = (min(MAX_CHARGE_VOLTAGE, calcBMSpwr) / 100) + 0x64;
+
+    static byte counter_1f2 = 0;
+
+    /*
+    Byte 2:
+    00000b 0x0 = Quick charge
+    00101b 0x5 = Normal Charge 6kw Full charge
+    01000b 0x8 = Normal Charge 200V Full charge
+    01011b 0xB = Normal Charge 100V Full charge
+    10010b 0x12 = Normal Charge 6kw long life charge
+    10101b 0x15 = Normal Charge 200V long life charge
+    11000b 0x18 = Normal Charge 100V long life charge
+    11111b 0x1F = Invalid value
+    */
+
+    // Commanded chg power in byte 1 and byte 0 bits 0-1. 10 bit number.
+    // byte 1=0x64 and byte 0=0x00 at 0 power.
+    // 0x00 chg 0ff dcdc on.
+    outFrame[0] = 0x30; // msg is muxed but pdm doesn't seem to care.
+    outFrame[1] = OBCpwr;
+    outFrame[2] = 0x20; // 0x20 = Normal Charge
+    outFrame[3] = 0xAC;
+    outFrame[4] = 0x00;
+    outFrame[5] = 0x3C;
+    outFrame[6] = counter_1f2;
+    outFrame[7] = 0x8F; // may not need checksum here?
+
+    counter_1f2++;
+    if (counter_1f2 >= 4)
+        counter_1f2 = 0;
+
+    can->Transmit(MsgID::CmdDCToDC, 8, outFrame);
+}
+
 void Msgs10ms()
 {
-    if (!timer_Frames10.HasTriggered() || !can_status)
+    if (!can_status)
         return;
 
     static byte counter_11a_d6 = 0;
@@ -571,113 +657,13 @@ void Msgs10ms()
     NissanCRC(outFrame);
     can->Transmit(MsgID::CmdBatteryState, 8, outFrame);
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-    // 0x1dc from lbc. Contains chg power lims and disch power lims.
-    // Disch power lim in byte 0 and byte 1 bits 6-7. Just set to max for now.
-    // Max charging power in bits 13-20. 10 bit unsigned scale 0.25.Byte 1 limit in kw.
-
-    static byte counter_1dc = 0;
-
-    ushort tmp_powerLimitOut = powerLimitOut * 4;  // X
-    ushort tmp_powerLimitIn = powerLimitIn * 4;    // Y
-    ushort tmp_chargingLimit = chargingLimit * 10; // Z
-
-    outFrame[0] = tmp_powerLimitOut >> 2;                         // 00XX XXXX
-    outFrame[1] = tmp_powerLimitOut << 6 | tmp_powerLimitIn >> 2; // XXYY YYYY
-    outFrame[2] = tmp_powerLimitIn << 4 | tmp_chargingLimit >> 6; // YYYY 00ZZ
-    outFrame[3] = tmp_chargingLimit << 2;                         // ZZZZ ZZ00
-    outFrame[4] = 0x00;
-    outFrame[5] = 0x00;
-    outFrame[6] = counter_1dc;
-
-    // Extra CRC in byte 7
-    NissanCRC(outFrame);
-
-    counter_1dc++;
-    if (counter_1dc >= 4)
-        counter_1dc = 0;
-
-    if(PDM_CAN_Enabled)
-        can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-    // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
-    // convert power setpoint to PDM format:
-    //    0x70 = 3 amps ish
-    //    0x6a = 1.4A
-    //    0x66 = 0.5A
-    //    0x65 = 0.3A
-    //    0x64 = no chg
-    //    so 0x64=100. 0xA0=160. so 60 decimal steps. 1 step=100W???
-    /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    // get actual voltage and voltage setpoints
-    int calcBMSpwr = chargingLimit * 1000; // BMS charge current limit but needs to be power for most AC charger types.
-
-    static byte OBCpwr = 0;
-    byte OBCpwrSP = (min(MAX_CHARGE_VOLTAGE, calcBMSpwr) / 100) + 0x64;
-
-    if (!prechargeComplete)
-    {
-        // clamp min and max values
-        if (OBCpwrSP > 0xA0)
-            OBCpwrSP = 0xA0;
-        else if (OBCpwrSP < 0x64)
-            OBCpwrSP = 0x64;
-
-        // if measured vbatt is less than setpoint got to max power from web ui
-        if (inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE)
-            OBCpwr = OBCpwrSP;
-
-        // decrement charger power if volt setpoint is reached
-        if (inverterStatus.inverterVoltage >= MAX_CHARGE_VOLTAGE)
-            OBCpwr--;
-    }
-    else
-    {
-        // set power to 0 if charge control is set to off or not in charge mode
-        OBCpwr = 0x64;
-    }
-
-    static byte counter_1f2 = 0;
-
-    /*
-    Byte 2:
-    00000b 0x0 = Quick charge
-    00101b 0x5 = Normal Charge 6kw Full charge
-    01000b 0x8 = Normal Charge 200V Full charge
-    01011b 0xB = Normal Charge 100V Full charge
-    10010b 0x12 = Normal Charge 6kw long life charge
-    10101b 0x15 = Normal Charge 200V long life charge
-    11000b 0x18 = Normal Charge 100V long life charge
-    11111b 0x1F = Invalid value
-    */
-
-    // Commanded chg power in byte 1 and byte 0 bits 0-1. 10 bit number.
-    // byte 1=0x64 and byte 0=0x00 at 0 power.
-    // 0x00 chg 0ff dcdc on.
-    outFrame[0] = 0x30; // msg is muxed but pdm doesn't seem to care.
-    outFrame[1] = OBCpwr;
-    outFrame[2] = 0x20; // 0x20 = Normal Charge
-    outFrame[3] = 0xAC;
-    outFrame[4] = 0x00;
-    outFrame[5] = 0x3C;
-    outFrame[6] = counter_1f2;
-    outFrame[7] = 0x8F; // may not need checksum here?
-
-    counter_1f2++;
-    if (counter_1f2 >= 4)
-        counter_1f2 = 0;
-
-    if(PDM_CAN_Enabled)
-        can->Transmit(MsgID::CmdDCToDC, 8, outFrame);
-
+    Msgs10msPDM();
     SendHeartBeat();
 }
 
-void Msgs100ms()
+void Msgs100msPDM()
 {
-    if (!timer_Frames100.HasTriggered() || !can_status)
+    if(!IsPDMEnabled())
         return;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -699,8 +685,7 @@ void Msgs100ms()
     if (counter_55b >= 4)
         counter_55b = 0;
 
-    if(PDM_CAN_Enabled)
-        can->Transmit(MsgID::CmdSOC, 8, outFrame);
+    can->Transmit(MsgID::CmdSOC, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x59E:
@@ -714,8 +699,7 @@ void Msgs100ms()
     outFrame[6] = 0x00;
     outFrame[7] = 0x00;
 
-    if(PDM_CAN_Enabled)
-        can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
+    can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x5BC:
@@ -730,9 +714,15 @@ void Msgs100ms()
     outFrame[6] = 0x00;
     outFrame[7] = 0x32;
 
-    if(PDM_CAN_Enabled)
-        can->Transmit(MsgID::CmdChargeStatus, 8, outFrame);
+    can->Transmit(MsgID::CmdChargeStatus, 8, outFrame);
+}
 
+void Msgs100ms()
+{
+    if (!can_status)
+        return;
+
+    Msgs100msPDM();
     SendHeartBeat();
 }
 
@@ -898,8 +888,10 @@ void Tick()
 
     ReadCAN();
 
-    Msgs100ms();
-    Msgs10ms();
+    if(timer_Frames100.HasTriggered())
+        Msgs100ms();
+    if(timer_Frames10.HasTriggered())
+        Msgs10ms();
 
     PrintFailures();
     PrintDebug();
