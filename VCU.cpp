@@ -8,6 +8,7 @@
 #include "SerialPrint.h"
 #include "Throttle.h"
 #include "Timer.h"
+#include "Filter.h"
 #include "mcp2515.h"
 
 namespace VCU
@@ -25,6 +26,9 @@ byte *outFrame = new byte[8];
 byte *inFrame = new byte[8];
 
 #define HVTimerTime 0.2f
+
+TimedFilter<bool> ignitionFilter = TimedFilter<bool>(100);
+TimedFilter<bool> driveModeFilter = TimedFilter<bool>(100);
 
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
@@ -261,7 +265,9 @@ bool IsIgnitionOn()
 
 void CheckIgnition()
 {
-    if (!digitalRead(PIN_IGNITION)) // PIN ON : INPUT_PULLUP
+    ignitionFilter.SetData(!digitalRead(PIN_IGNITION)); // PIN ON BY DEFAULT : INPUT_PULLUP
+    
+    if (ignitionFilter.GetData())
     {
         if (!ignitionOn)
             PrintSerialMessage("Ignition on");
@@ -280,7 +286,9 @@ void CheckIgnition()
 
 void CheckDriveMode()
 {
-    if (ignitionOn && !digitalRead(PIN_DRIVE_MODE)) // PIN ON : INPUT_PULLUP
+    driveModeFilter.SetData(!digitalRead(PIN_DRIVE_MODE)); // PIN ON BY DEFAULT : INPUT_PULLUP
+    
+    if (ignitionOn && driveModeFilter.GetData())
     {
         if (!driveMode)
             PrintSerialMessage("Drive mode on");
