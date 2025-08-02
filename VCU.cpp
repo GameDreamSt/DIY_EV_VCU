@@ -200,6 +200,24 @@ void NissanCRC(byte *data)
     data[7] = crc;
 }
 
+ushort Checksum(byte *data)
+{
+    ushort checksum = 0;
+    for (int b = 0; b < 7; b++) // 7 CAN data bytes
+    {
+        byte wholeByte = data[b];
+        checksum += wholeByte >> 4; // XXXX XXXX -> 0000 XXXX
+        checksum += wholeByte & 0x0F; // XXXX XXXX & 0000 AAAA -> 0000 XXXX
+    }
+
+    return checksum;
+}
+
+void CAN_ChecksumNibble(byte *data, byte add, byte mask)
+{
+    data[7] = (Checksum(data) + add) & mask;
+}
+
 ContactorTest contactorTest;
 
 void SetContactor(int pinID, bool state)
@@ -464,11 +482,8 @@ void Msgs10msPDM()
     //    so 0x64=100. 0xA0=160. so 60 decimal steps. 1 step=100W???
     /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // get actual voltage and voltage setpoints
-    int calcBMSpwr = chargingLimit * 1000; // BMS charge current limit but needs to be power for most AC charger types.
-
-    static byte OBCpwr = 0x64;
-    byte OBCpwrSP = (min(MAX_CHARGE_VOLTAGE, calcBMSpwr) / 100) + 0x64;
+    ushort zeroChargeDefaultAmount = 100; // Baseline is 100 or 0x64
+    ushort AC_ChargePower = zeroChargeDefaultAmount + 330; // 10 bits max, 1 = 100W, set to 3.3kw
 
     static byte counter_1f2 = 0;
 
@@ -484,17 +499,16 @@ void Msgs10msPDM()
     11111b 0x1F = Invalid value
     */
 
-    // Commanded chg power in byte 1 and byte 0 bits 0-1. 10 bit number.
-    // byte 1=0x64 and byte 0=0x00 at 0 power.
     // 0x00 chg 0ff dcdc on.
-    outFrame[0] = 0x30; // msg is muxed but pdm doesn't seem to care.
-    outFrame[1] = OBCpwr;
+    outFrame[0] = 0x03 & AC_ChargePower >> 6;
+    outFrame[1] = AC_ChargePower;
     outFrame[2] = 0x20; // 0x20 = Normal Charge
     outFrame[3] = 0xAC;
     outFrame[4] = 0x00;
-    outFrame[5] = 0x3C;
+    outFrame[5] = 0x1E;
     outFrame[6] = counter_1f2;
-    outFrame[7] = 0x8F; // may not need checksum here?
+
+    CAN_ChecksumNibble(outFrame, 2, 0x0F);
 
     counter_1f2++;
     if (counter_1f2 >= 4)
