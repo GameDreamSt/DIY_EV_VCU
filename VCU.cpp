@@ -50,9 +50,9 @@ ThrottleManager throttleManager = ThrottleManager();
 
 #define LOWEST_VOLTAGE 210
 #define MAX_CHARGE_VOLTAGE 249
-float powerLimitOut = 3; // In kw
-float powerLimitIn = 0;  // In kw (from regen braking)
-float chargingLimit = 0; // In kw (from plug)
+float powerLimitOut = 50; // In kw
+float powerLimitIn = 10;  // In kw (from regen braking)
+float chargingLimit = 50; // In kw (from plug)
 
 float OBC_AC_Voltage = 0;
 float OBCActivePower = 0;
@@ -403,19 +403,29 @@ void Msgs10msPDM()
     // Disch power lim in byte 0 and byte 1 bits 6-7. Just set to max for now.
     // Max charging power in bits 13-20. 10 bit unsigned scale 0.25.Byte 1 limit in kw.
 
-    static byte counter_1dc = 0;
+    static byte counter_1dc = 0; // E
 
     ushort tmp_powerLimitOut = powerLimitOut * 4;  // X
     ushort tmp_powerLimitIn = powerLimitIn * 4;    // Y
-    ushort tmp_chargingLimit = chargingLimit * 10; // Z
+    ushort tmp_chargingLimit = (chargingLimit + 10) * 10; // Z
+    byte chargePowerStatus = 1; // W   00b = Reserved 01b = Normal limit PIN 10b = High rate limit PIN 11b = Immediate limit PIN
+    byte uprateMode = 1; // A   BPC MAX Uprate Level 1-8. 
+    // Dala: (CAN-bridge testing) This value specifies how quickly the VCM follows the requested power in "LB_MAX_POWER_FOR_CHARGER".
+    // ZE0 Example, if Level 1 is selected and battery requests 45kW of quickcharging power, it will take 8minutes for power to ramp up from 0kW->45kW. 
+    // If Level 8 is selected, it will take not ramp at all, and just intantaneously follow the requested power. 
+    // If low level is forced, some quickcharging stations will fail to charge the vehicle, with an error message stating that too low current was demanded. 
+    // Special notes for AZE0, the newer AZE0 VCM will ramp more aggressively at level 1 compared to ZE0, and no issues with fastcharging even though slow ramp rate is selected.
+    byte codeCondition = 3; // B ?? "Pursuit be advised, this chase is now condition 5, condition 5. Federal units are now in control of this chase."
+    byte code1 = 51; // C ??
+    byte code2 = 52; // D ??
 
-    /*outFrame[0] = tmp_powerLimitOut >> 2;                       // 00XX XXXX
-    outFrame[1] = tmp_powerLimitOut << 6 | tmp_powerLimitIn >> 2; // XXYY YYYY
-    outFrame[2] = tmp_powerLimitIn << 4 | tmp_chargingLimit >> 6; // YYYY 00ZZ
-    outFrame[3] = tmp_chargingLimit << 2;                         // ZZZZ ZZ00
-    outFrame[4] = 0x00;
-    outFrame[5] = 0x00;
-    outFrame[6] = counter_1dc;*/
+    outFrame[0] = tmp_powerLimitOut >> 2;                                               // XXXX XXXX
+    outFrame[1] = tmp_powerLimitOut << 6 | (0x3F & tmp_powerLimitIn >> 4);              // XXYY YYYY
+    outFrame[2] = tmp_powerLimitIn << 4 | (0x0F & tmp_chargingLimit >> 6);              // YYYY ZZZZ
+    outFrame[3] = tmp_chargingLimit << 2 | (0x03 & chargePowerStatus);                  // ZZZZ ZZWW
+    outFrame[4] = uprateMode << 5 | (0x1C & codeCondition << 2) | (0x03 & code1 >> 6);  // AAAB BBCC
+    outFrame[5] = code1 << 2 | (0x03 & code2 >> 6);                                     // CCCC CCDD
+    outFrame[6] = code2 << 2 | (0x03 & counter_1dc);                                    // DDDD DDEE
 
     // Zombie verter hard coded nessage
     // Discharge power limit 110kw
@@ -426,13 +436,13 @@ void Msgs10msPDM()
     // Code condition: 2
     // code1: 48
     // code2: 49
-    outFrame[0] = 0x6E; 
+    /*outFrame[0] = 0x6E; 
     outFrame[1] = 0x02; 
     outFrame[2] = 0xDF; 
     outFrame[3] = 0xFD;
     outFrame[4] = 0x08;
     outFrame[5] = 0xC0;
-    outFrame[6] = counter_1dc;
+    outFrame[6] = counter_1dc;*/
 
     // Extra CRC in byte 7
     NissanCRC(outFrame);
