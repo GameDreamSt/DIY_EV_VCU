@@ -1,7 +1,7 @@
 
 #include "CAN.h"
 #include "SerialPrint.h"
-#include "mcp2515.h"
+#include "mcp2515.h" // autowp-mcp2515
 
 #include <SPI.h>
 
