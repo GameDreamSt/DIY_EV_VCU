@@ -34,4 +34,5 @@ void TickTime()
         currentDeltaTime = microsecondsDelta / 1000000.0f;
 
     microsecondsFromStart += microsecondsDelta;
+    lastMicroSeconds = currentMicroseconds;
 }
