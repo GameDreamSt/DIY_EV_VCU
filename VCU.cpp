@@ -10,6 +10,16 @@
 #include "Timer.h"
 #include "Filter.h"
 #include "mcp2515.h"
+#include "SerialPrint.h"
+
+String Stats::GetString()
+{
+    return "RPM: " + ToString(rpm) +
+        "\nMotor torque: " + ToString(motorTorque) + " nm" +
+        "\nMotor power: " + FloatToString(motorPower, 1) + " kw" +
+        "\nInverter temperature: " + FloatToString(inverter_temperature, 2) + " C " +
+        "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
+}
 
 namespace VCU
 {
@@ -109,6 +119,16 @@ InverterStatus inverterStatus;
 InverterStatus GetInverterStatus()
 {
     return inverterStatus;
+}
+
+Stats maxStats;
+Stats GetMaxRecordedStats()
+{
+    return maxStats;
+}
+void ClearMaxRecordedStats()
+{
+    maxStats = Stats();
 }
 
 enum MsgID
@@ -670,7 +690,7 @@ void Msgs10ms()
 
     // We need to send 0x1db here with voltage measured by inverter
     short TMP_battI =
-        inverterStatus.motorPower * 2000.0f / (float)inverterStatus.inverterVoltage; //(Param::Get(Param::idc)) * 2;
+        inverterStatus.stats.motorPower * 2000.0f / (float)inverterStatus.inverterVoltage; //(Param::Get(Param::idc)) * 2;
     short TMP_battV = inverterStatus.inverterVoltage * 4;                            //(Param::Get(Param::udc)) * 4;
 
     outFrame[0] = TMP_battI >> 8;   // MSB current. 11 bit signed MSBit first
@@ -834,22 +854,27 @@ void ReadCAN()
         torque = (short)((inFrame[2] & 0x07) << 8 | inFrame[3]);
         if ((inFrame[2] & 0x04) == 0x04) // indicates negative value
             torque = torque | 0xf800;    // pad leading 1s for 2s complement signed
-        inverterStatus.motorTorque = torque / 2;
+        inverterStatus.stats.motorTorque = torque / 2;
+        maxStats.motorTorque = max(maxStats.motorTorque, inverterStatus.stats.motorTorque);
 
         rpm = (short)(inFrame[4] << 8 | inFrame[5]);
         if ((inFrame[4] & 0x40) == 0x40) // indicates negative value
             rpm = rpm | 0x8000;          // pad leading 1s for 2s complement signed
-        inverterStatus.rpm = rpm / 2;
+        inverterStatus.stats.rpm = rpm / 2;
+        maxStats.rpm = max(maxStats.rpm, inverterStatus.stats.rpm);
 
         // torque (Nm) to power (W) = 2 x pi / 60 * rpm * torque
-        inverterStatus.motorPower = rpm * torque / 9548.8f;
+        inverterStatus.stats.motorPower = rpm * torque / 9548.8f;
+        maxStats.motorPower = max(maxStats.motorPower, inverterStatus.stats.motorPower);
 
         inverterStatus.error_state = (inFrame[6] & 0xb0) != 0x00;
         break;
 
     case MsgID::RcvTempF:
-        inverterStatus.motor_temperature = FahrenheitToCelsius(inFrame[1]);
-        inverterStatus.inverter_temperature = FahrenheitToCelsius(inFrame[2]);
+        inverterStatus.stats.motor_temperature = FahrenheitToCelsius(inFrame[1]);
+        inverterStatus.stats.inverter_temperature = FahrenheitToCelsius(inFrame[2]);
+        maxStats.motor_temperature = max(maxStats.motor_temperature, inverterStatus.stats.motor_temperature);
+        maxStats.inverter_temperature = max(maxStats.inverter_temperature, inverterStatus.stats.inverter_temperature);
         break;
 
     case MsgID::RcvPlugStatus:

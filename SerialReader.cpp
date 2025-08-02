@@ -129,15 +129,27 @@ String PDMModelTypeToString(PDMType type)
 void PrintInverterStatus()
 {
     InverterStatus status = VCU::GetInverterStatus();
+    Stats stats = status.stats;
 
     String str = "EV status:\nPDM model mode: " + PDMModelTypeToString(status.PDMModelType) +
-                 "\nInverter voltage: " + ToString(status.inverterVoltage) + " V " + "\nRPM: " + ToString(status.rpm) +
-                 "\nMotor torque: " + ToString(status.motorTorque) + " nm\nMotor power: " + FloatToString(status.motorPower, 1) + " kw"
-                 "\nInverter temperature: " + FloatToString(status.inverter_temperature, 2) + " C " +
-                 "\nMotor temperature: " + FloatToString(status.motor_temperature, 2) + " C " +
+                 "\nInverter voltage: " + ToString(status.inverterVoltage) + " V " + 
+                 "\n" + stats.GetString() +
                  "\nIs in error state: " + BoolToString(status.error_state);
 
     PrintSerialMessage(str);
+}
+
+void PrintInverterMaxStats()
+{
+    Stats stats = VCU::GetMaxRecordedStats();
+    String str = "Max recorded stats:\n" +
+                 stats.GetString();
+    PrintSerialMessage(str);
+}
+
+void ClearMaxStats()
+{
+    VCU::ClearMaxRecordedStats();
 }
 
 void SetTorque()
@@ -243,6 +255,8 @@ void InitializeSerialReader()
 {
     commandPointers.push_back(CommandPointer("help", OutputHelp));
     commandPointers.push_back(CommandPointer("status", OutputStatus));
+    commandPointers.push_back(CommandPointer("maxstats", PrintInverterMaxStats));
+    commandPointers.push_back(CommandPointer("clearmaxstats", ClearMaxStats));
     commandPointers.push_back(CommandPointer("printcan", PrintCan));
     commandPointers.push_back(CommandPointer("torque", SetTorque));
     commandPointers.push_back(CommandPointer("maxtorque", SetMaxTorque));
