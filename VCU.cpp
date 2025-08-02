@@ -469,6 +469,13 @@ void Msgs10msPDM()
     if (counter_1dc >= 4)
         counter_1dc = 0;
 
+    uint64_t Rolled_1DC_Frames[4];
+    Rolled_1DC_Frames[0] = 0x6e0c2ffd0ce4c8d8;
+    Rolled_1DC_Frames[1] = 0x6e0c2ffd01150551;
+    Rolled_1DC_Frames[2] = 0x6e0c2ffd04dccaf7;
+    Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;
+    memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);
+
     can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
