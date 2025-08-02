@@ -267,7 +267,7 @@ void CheckIgnition()
 {
     ignitionFilter.SetData(!digitalRead(PIN_IGNITION)); // PIN ON BY DEFAULT : INPUT_PULLUP
     
-    if (ignitionFilter.GetData())
+    if (ignitionFilter.GetData() || plugInserted)
     {
         if (!ignitionOn)
             PrintSerialMessage("Ignition on");
@@ -286,6 +286,12 @@ void CheckIgnition()
 
 void CheckDriveMode()
 {
+    if(plugInserted)
+    {
+        driveMode = false;
+        return;
+    }
+
     driveModeFilter.SetData(!digitalRead(PIN_DRIVE_MODE)); // PIN ON BY DEFAULT : INPUT_PULLUP
     
     if (ignitionOn && driveModeFilter.GetData())
@@ -383,12 +389,29 @@ void Msgs10msPDM()
     ushort tmp_powerLimitIn = powerLimitIn * 4;    // Y
     ushort tmp_chargingLimit = chargingLimit * 10; // Z
 
-    outFrame[0] = tmp_powerLimitOut >> 2;                         // 00XX XXXX
+    /*outFrame[0] = tmp_powerLimitOut >> 2;                       // 00XX XXXX
     outFrame[1] = tmp_powerLimitOut << 6 | tmp_powerLimitIn >> 2; // XXYY YYYY
     outFrame[2] = tmp_powerLimitIn << 4 | tmp_chargingLimit >> 6; // YYYY 00ZZ
     outFrame[3] = tmp_chargingLimit << 2;                         // ZZZZ ZZ00
     outFrame[4] = 0x00;
     outFrame[5] = 0x00;
+    outFrame[6] = counter_1dc;*/
+
+    // Zombie verter hard coded nessage
+    // Discharge power limit 110kw
+    // Charge power limit 11.25 kw
+    // Max power for charger 92.3kw
+    // Charge power status: Normal limit PIN
+    // BPC MAX uprate level 1
+    // Code condition: 2
+    // code1: 48
+    // code2: 49
+    outFrame[0] = 0x6E; 
+    outFrame[1] = 0x02; 
+    outFrame[2] = 0xDF; 
+    outFrame[3] = 0xFD;
+    outFrame[4] = 0x08;
+    outFrame[5] = 0xC0;
     outFrame[6] = counter_1dc;
 
     // Extra CRC in byte 7
@@ -398,7 +421,7 @@ void Msgs10msPDM()
     if (counter_1dc >= 4)
         counter_1dc = 0;
 
-    //can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+    can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
