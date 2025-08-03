@@ -543,10 +543,10 @@ void Msgs10msPDM()
     Rolled_1DC_Frames[0] = 0x6e0c2ffd0ce4c8d8;
     Rolled_1DC_Frames[1] = 0x6e0c2ffd01150551;
     Rolled_1DC_Frames[2] = 0x6e0c2ffd04dccaf7;
-    Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;*/
-    memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);
+    Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;
+    memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);)*/
 
-    // can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+    //can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
@@ -797,7 +797,7 @@ void Msgs10ms()
     outFrame[0] = TMP_battI >> 3;   // MSB current. 11 bit signed MSBit first
     outFrame[1] = (TMP_battI & 0x07) << 5; // LSB current bits 7-5. Dont need to mess with bits 0-4 for now as 0 works.
     outFrame[2] = TMP_battV >> 2;
-    outFrame[3] = ((TMP_battV & 0x07) << 6) | (0x2b)); // 0x2b should give no cut req, main rly on permission,normal p limit.
+    outFrame[3] = ((TMP_battV & 0x07) << 6) | 0x2b; // 0x2b should give no cut req, main rly on permission,normal p limit.
     outFrame[4] = 0x40;                          // SOC for dash in Leaf. fixed val.
     outFrame[5] = 0x00;
     outFrame[6] = counter_1db;
