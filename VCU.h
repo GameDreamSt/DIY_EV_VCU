@@ -17,6 +17,7 @@ struct PDMStatus
     float activePowerKw;
     float availablePowerKw;
     bool plugInserted;
+    unsigned char plugAmpsType;
 
     String GetString();
 };

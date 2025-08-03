@@ -23,11 +23,12 @@ String Stats::GetString()
 
 String PDMStatus::GetString()
 {
-    return "AC Voltage: " + FloatToString(plugVoltage, 0) +
-    " V\nAC voltage mode: " + ToString(plugVoltageMode) +
-    "\nActive power: " + FloatToString(activePowerKw, 1) + " kw\nAvailable power: " + 
-    FloatToString(availablePowerKw, 1) + " kw\n\Is plug inserted: " +
-    BoolToString(plugInserted);
+    return "AC Voltage: " + FloatToString(plugVoltage, 0) + " V" +
+    "\nAC voltage mode: " + ToString(plugVoltageMode) + " V" +
+    "\nActive power: " + FloatToString(activePowerKw, 1) + " kw" +
+    "\nAvailable power: " + FloatToString(availablePowerKw, 1) + " kw" +
+    "\nIs plug inserted: " + BoolToString(plugInserted) + 
+    "\nPlug amperage: " + ToString(plugAmpsType);
 }
 
 namespace VCU
@@ -884,7 +885,7 @@ void ReadCAN()
     memcpy(inFrame, recvFrame.data, recvFrame.can_dlc);
 
     short parsed_speed, torque, rpm;
-    byte OBCVoltageStatus;
+    byte plugStatus;
 
     // Handle CAN message
     switch (messageType)
@@ -923,20 +924,23 @@ void ReadCAN()
         pdmStatus.activePowerKw = inFrame[1] * 0.1f; // Power in 0.1kW
         pdmStatus.availablePowerKw = inFrame[6] * 0.1f; // Power in 0.1kW
 
-        if(OBCVoltageStatus == 0x1)
+        if(pdmStatus.plugVoltageMode == 0x1)
             pdmStatus.plugVoltage = 110;
-        else if(OBCVoltageStatus == 0x2)
+        else if(pdmStatus.plugVoltageMode == 0x2)
             pdmStatus.plugVoltage = 230;
         else
             pdmStatus.plugVoltage = 0;
 
-        if (inFrame[5] & 0x0F == 0x08)
+        plugStatus = inFrame[5] & 0x0F;
+        if (plugStatus == 0x08 || plugStatus == 0x04) // 32A vs 16A plugs
         {
+            pdmStatus.plugAmpsType = plugStatus == 0x08 ? 32 : 16;
+
             if (!pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug inserted");
             pdmStatus.plugInserted = true;
         }
-        if (inFrame[5] & 0x0F == 0x00)
+        if (plugStatus == 0x00)
         {
             if (pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug disconnected");
