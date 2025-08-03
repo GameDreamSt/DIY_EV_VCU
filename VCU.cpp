@@ -21,6 +21,15 @@ String Stats::GetString()
         "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
 }
 
+String PDMStatus::GetString()
+{
+    return "AC Voltage: " + FloatToString(plugVoltage, 0) +
+    " V\nAC voltage mode: " + ToString(plugVoltageMode) +
+    "\nActive power: " + FloatToString(activePowerKw, 1) + " kw\nAvailable power: " + 
+    FloatToString(availablePowerKw, 1) + " kw\n\Is plug inserted: " +
+    BoolToString(plugInserted);
+}
+
 namespace VCU
 {
 #ifndef byte
@@ -53,10 +62,6 @@ ThrottleManager throttleManager = ThrottleManager();
 float powerLimitOut = 50; // In kw
 float powerLimitIn = 10;  // In kw (from regen braking)
 float chargingLimit = 50; // In kw (from plug)
-
-float OBC_AC_Voltage = 0;
-float OBCActivePower = 0;
-float OBCAvailablePower = 0;
 
 ushort ThrotVal = 0; // analog value of throttle position.
 
@@ -98,7 +103,6 @@ bool ignitionOn;
 bool driveMode;
 
 bool can_status;
-bool plugInserted;
 
 bool gen2Codes = true;
 bool ToggleGen2Codes()
@@ -129,6 +133,12 @@ Stats GetMaxRecordedStats()
 void ClearMaxRecordedStats()
 {
     maxStats = Stats();
+}
+
+PDMStatus pdmStatus;
+PDMStatus GetPDMStatus()
+{
+    return pdmStatus;
 }
 
 enum MsgID
@@ -305,7 +315,7 @@ void CheckIgnition()
 {
     ignitionFilter.SetData(!digitalRead(PIN_IGNITION)); // PIN ON BY DEFAULT : INPUT_PULLUP
     
-    if (ignitionFilter.GetData() || plugInserted)
+    if (ignitionFilter.GetData() || pdmStatus.plugInserted)
     {
         if (!ignitionOn)
             PrintSerialMessage("Ignition on");
@@ -324,7 +334,7 @@ void CheckIgnition()
 
 void CheckDriveMode()
 {
-    if(plugInserted)
+    if(pdmStatus.plugInserted)
     {
         driveMode = false;
         return;
@@ -476,7 +486,7 @@ void Msgs10msPDM()
     Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;
     memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);
 
-    can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+    //can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
@@ -909,29 +919,33 @@ void ReadCAN()
         break;
 
     case MsgID::RcvPlugStatus:
-        OBCVoltageStatus = (inFrame[3] >> 3) & 0x03; // Plug voltage
-        OBCActivePower = inFrame[1] * 0.1f; // Power in 0.1kW
-        OBCAvailablePower = inFrame[6] * 0.1f; // Power in 0.1kW
+        pdmStatus.plugVoltageMode = (inFrame[3] >> 3) & 0x03;
+        pdmStatus.activePowerKw = inFrame[1] * 0.1f; // Power in 0.1kW
+        pdmStatus.availablePowerKw = inFrame[6] * 0.1f; // Power in 0.1kW
 
         if(OBCVoltageStatus == 0x1)
-            OBC_AC_Voltage = 110;
+            pdmStatus.plugVoltage = 110;
         else if(OBCVoltageStatus == 0x2)
-            OBC_AC_Voltage = 230;
+            pdmStatus.plugVoltage = 230;
         else
-            OBC_AC_Voltage = 0;
+            pdmStatus.plugVoltage = 0;
 
         if (inFrame[5] & 0x0F == 0x08)
         {
-            if (!plugInserted)
+            if (!pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug inserted");
-            plugInserted = true;
+            pdmStatus.plugInserted = true;
         }
         if (inFrame[5] & 0x0F == 0x00)
         {
-            if (plugInserted)
+            if (pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug disconnected");
-            plugInserted = false;
+            pdmStatus.plugInserted = false;
         }
+        break;
+
+        case MsgID::RcvPlugInsert:
+        PrintSerialMessage("J1772 plug detected!");
         break;
 
     case MsgID::RcvPDMModel_AZE0_2014_2017:

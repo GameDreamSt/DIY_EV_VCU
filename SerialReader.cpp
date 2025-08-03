@@ -152,6 +152,14 @@ void ClearMaxStats()
     VCU::ClearMaxRecordedStats();
 }
 
+void PrintPDMStatus()
+{
+    PDMStatus status = VCU::GetPDMStatus();
+    String str = "PDM status:\n" +
+                 status.GetString();
+    PrintSerialMessage(str);
+}
+
 void SetTorque()
 {
     if (parameters.size() == 0)
@@ -257,6 +265,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("status", OutputStatus));
     commandPointers.push_back(CommandPointer("maxstats", PrintInverterMaxStats));
     commandPointers.push_back(CommandPointer("clearmaxstats", ClearMaxStats));
+    commandPointers.push_back(CommandPointer("pdmstatus", PrintPDMStatus));
     commandPointers.push_back(CommandPointer("printcan", PrintCan));
     commandPointers.push_back(CommandPointer("torque", SetTorque));
     commandPointers.push_back(CommandPointer("maxtorque", SetMaxTorque));

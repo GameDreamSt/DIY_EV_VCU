@@ -10,6 +10,17 @@ enum PDMType
     ZE1_2018,       // If CAN message 0x1ED is identified on the EV-CAN
 };
 
+struct PDMStatus
+{
+    float plugVoltage;
+    unsigned char plugVoltageMode;
+    float activePowerKw;
+    float availablePowerKw;
+    bool plugInserted;
+
+    String GetString();
+};
+
 struct Stats
 {
     short rpm = 0;
@@ -42,6 +53,7 @@ void Tick();
 InverterStatus GetInverterStatus();
 Stats GetMaxRecordedStats();
 void ClearMaxRecordedStats();
+PDMStatus GetPDMStatus();
 
 void SetFinalTorqueRequest(short value);
 bool SetMaxTorqueRequest(short value);
