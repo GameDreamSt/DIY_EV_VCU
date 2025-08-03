@@ -192,7 +192,7 @@ enum MsgID
     // Inverter IDs
     CmdHeartBeat = 0x50B,
     CmdGearSelection = 0x11A,
-    CmdBatteryState = 0x1DB, // Also for PDM
+    CmdBatteryState = 0x1DB, // Also for PDM from BMS, but for now, spoof it
     CmdTorque = 0x1D4,
     RcvInverterState = 0x1DA,
     RcvTempF = 0x55A,
@@ -485,8 +485,7 @@ void Msgs10msPDM()
     ushort tmp_powerLimitOut = powerLimitOut * 4;         // X
     ushort tmp_powerLimitIn = powerLimitIn * 4;           // Y
     ushort tmp_chargingLimit = (chargingLimit + 10) * 10; // Z
-    byte chargePowerStatus =
-        1; // W   00b = Reserved 01b = Normal limit PIN 10b = High rate limit PIN 11b = Immediate limit PIN
+    byte chargePowerStatus = 1; // W   00b = Reserved 01b = Normal limit PIN 10b = High rate limit PIN 11b = Immediate limit PIN
     byte uprateMode = 1; // A   BPC MAX Uprate Level 1-8.
     // Dala: (CAN-bridge testing) This value specifies how quickly the VCM follows the requested power in
     // "LB_MAX_POWER_FOR_CHARGER". ZE0 Example, if Level 1 is selected and battery requests 45kW of quickcharging power,
@@ -495,8 +494,7 @@ void Msgs10msPDM()
     // to charge the vehicle, with an error message stating that too low current was demanded. Special notes for AZE0,
     // the newer AZE0 VCM will ramp more aggressively at level 1 compared to ZE0, and no issues with fastcharging even
     // though slow ramp rate is selected.
-    byte codeCondition = 3; // B ?? "Pursuit be advised, this chase is now condition 5, condition 5. Federal units are
-                            // now in control of this chase."
+    byte codeCondition = 3; // B ?? "Pursuit be advised, this chase is now condition 5, condition 5. Federal units are now in control of this chase."
     byte code1 = 51;        // C ??
     byte code2 = 52;        // D ??
 
@@ -525,6 +523,15 @@ void Msgs10msPDM()
     outFrame[5] = 0xC0;
     outFrame[6] = counter_1dc;*/
 
+    //stm32-vcu
+    outFrame[0] = 0x6E;
+    outFrame[1] = 0x0A;
+    outFrame[2] = 0x05;
+    outFrame[3] = 0xD5;
+    outFrame[4] = 0x00;
+    outFrame[5] = 0x00;
+    outFrame[6] = counter_1dc;
+
     // Extra CRC in byte 7
     NissanCRC(outFrame);
 
@@ -532,11 +539,11 @@ void Msgs10msPDM()
     if (counter_1dc >= 4)
         counter_1dc = 0;
 
-    uint64_t Rolled_1DC_Frames[4];
+    /*uint64_t Rolled_1DC_Frames[4];
     Rolled_1DC_Frames[0] = 0x6e0c2ffd0ce4c8d8;
     Rolled_1DC_Frames[1] = 0x6e0c2ffd01150551;
     Rolled_1DC_Frames[2] = 0x6e0c2ffd04dccaf7;
-    Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;
+    Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;*/
     memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);
 
     // can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
@@ -783,14 +790,14 @@ void Msgs10ms()
     can->Transmit(MsgID::CmdTorque, 8, outFrame);
 
     // We need to send 0x1db here with voltage measured by inverter
-    short TMP_battI = inverterStatus.stats.motorPower * 2000.0f /
+    int TMP_battI = inverterStatus.stats.motorPower * 2000.0f /
                       (float)inverterStatus.inverterVoltage; //(Param::Get(Param::idc)) * 2;
     short TMP_battV = inverterStatus.inverterVoltage * 4;    //(Param::Get(Param::udc)) * 4;
 
-    outFrame[0] = TMP_battI >> 8;   // MSB current. 11 bit signed MSBit first
-    outFrame[1] = TMP_battI & 0xE0; // LSB current bits 7-5. Dont need to mess with bits 0-4 for now as 0 works.
-    outFrame[2] = TMP_battV >> 8;
-    outFrame[3] = ((TMP_battV & 0xC0) | (0x2b)); // 0x2b should give no cut req, main rly on permission,normal p limit.
+    outFrame[0] = TMP_battI >> 3;   // MSB current. 11 bit signed MSBit first
+    outFrame[1] = (TMP_battI & 0x07) << 5; // LSB current bits 7-5. Dont need to mess with bits 0-4 for now as 0 works.
+    outFrame[2] = TMP_battV >> 2;
+    outFrame[3] = ((TMP_battV & 0x07) << 6) | (0x2b)); // 0x2b should give no cut req, main rly on permission,normal p limit.
     outFrame[4] = 0x40;                          // SOC for dash in Leaf. fixed val.
     outFrame[5] = 0x00;
     outFrame[6] = counter_1db;
