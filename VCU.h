@@ -58,6 +58,10 @@ PDMStatus GetPDMStatus();
 
 void SetFinalTorqueRequest(short value);
 bool SetMaxTorqueRequest(short value);
+
+bool SetRegenTorque(short value);
+bool SetRegenRPMRange(short lowRPM, short highRPM);
+
 void SetBatteryDischargeLimit(float kilowatts);
 void ToggleThrottlePrint();
 

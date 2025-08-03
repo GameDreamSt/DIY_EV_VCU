@@ -5,30 +5,26 @@
 
 #include "CAN.h"
 #include "Contactor.h"
+#include "Filter.h"
 #include "SerialPrint.h"
 #include "Throttle.h"
 #include "Timer.h"
-#include "Filter.h"
 #include "mcp2515.h"
-#include "SerialPrint.h"
 
 String Stats::GetString()
 {
-    return "RPM: " + ToString(rpm) +
-        "\nMotor torque: " + ToString(motorTorque) + " nm" +
-        "\nMotor power: " + FloatToString(motorPower, 1) + " kw" +
-        "\nInverter temperature: " + FloatToString(inverter_temperature, 2) + " C " +
-        "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
+    return "RPM: " + ToString(rpm) + "\nMotor torque: " + ToString(motorTorque) + " nm" +
+           "\nMotor power: " + FloatToString(motorPower, 1) + " kw" +
+           "\nInverter temperature: " + FloatToString(inverter_temperature, 2) + " C " +
+           "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
 }
 
 String PDMStatus::GetString()
 {
-    return "AC Voltage: " + FloatToString(plugVoltage, 0) + " V" +
-    "\nAC voltage mode: " + ToString(plugVoltageMode) + " V" +
-    "\nActive power: " + FloatToString(activePowerKw, 1) + " kw" +
-    "\nAvailable power: " + FloatToString(availablePowerKw, 1) + " kw" +
-    "\nIs plug inserted: " + BoolToString(plugInserted) + 
-    "\nPlug amperage: " + ToString(plugAmpsType);
+    return "AC Voltage: " + FloatToString(plugVoltage, 0) + " V" + "\nAC voltage mode: " + ToString(plugVoltageMode) +
+           " V" + "\nActive power: " + FloatToString(activePowerKw, 1) + " kw" +
+           "\nAvailable power: " + FloatToString(availablePowerKw, 1) + " kw" +
+           "\nIs plug inserted: " + BoolToString(plugInserted) + "\nPlug amperage: " + ToString(plugAmpsType);
 }
 
 namespace VCU
@@ -83,14 +79,63 @@ void SetFinalTorqueRequest(short value)
 
 bool SetMaxTorqueRequest(short value)
 {
-    if(value > MAX_TORQUE)
+    if (value < 0)
     {
-        PrintSerialMessage("Torque requested is above max torque of " + ToString(MAX_TORQUE) + "!");
+        PrintSerialMessage("Max torque requested is below 0!");
+        return false;
+    }
+
+    if (value > MAX_TORQUE)
+    {
+        PrintSerialMessage("Max torque requested is above max torque of " + ToString(MAX_TORQUE) + "!");
         return false;
     }
 
     MaxTorque = value;
     return true;
+}
+
+bool regenEnabled = true;
+short regenTorque = 400;
+short minRegenRPM = 100; // Don't use 0
+short maxRegenRPM = 1000; // Don't use 0
+bool SetRegenTorque(short value)
+{
+    if (value < 0)
+    {
+        PrintSerialMessage("Regen torque requested is below 0!");
+        return false;
+    }
+
+    if (value > MAX_TORQUE)
+    {
+        PrintSerialMessage("Regen torque requested is above max torque of " + ToString(MAX_TORQUE) + "!");
+        return false;
+    }
+
+    regenTorque = value;
+    return true;
+}
+bool SetRegenRPMRange(short lowRPM, short highRPM)
+{
+    if (lowRPM > highRPM)
+    {
+        PrintSerialMessage("Lower RPM limit can't be higher than high RPM limit!");
+        return false;
+    }
+
+    if (lowRPM <= 0 || highRPM <= 0)
+    {
+        PrintSerialMessage("Regen disabled!");
+        regenEnabled = false;
+        return true;
+    }
+
+    if (!regenEnabled)
+        PrintSerialMessage("Regen enabled!");
+    regenEnabled = true;
+    minRegenRPM = lowRPM;
+    maxRegenRPM = highRPM;
 }
 
 void SetBatteryDischargeLimit(float kilowatts)
@@ -217,7 +262,7 @@ ushort Checksum(byte *data)
     for (int b = 0; b < 7; b++) // 7 CAN data bytes
     {
         byte wholeByte = data[b];
-        checksum += wholeByte >> 4; // XXXX XXXX -> 0000 XXXX
+        checksum += wholeByte >> 4;   // XXXX XXXX -> 0000 XXXX
         checksum += wholeByte & 0x0F; // XXXX XXXX & 0000 AAAA -> 0000 XXXX
     }
 
@@ -233,21 +278,21 @@ ContactorTest contactorTest;
 
 void SetContactor(int pinID, bool state)
 {
-    switch(pinID)
+    switch (pinID)
     {
-        case PIN_PRECHARGE:
-            digitalWrite(PIN_PRECHARGE, state || contactorTest == ContactorTest::Precharge ? HIGH : LOW);
+    case PIN_PRECHARGE:
+        digitalWrite(PIN_PRECHARGE, state || contactorTest == ContactorTest::Precharge ? HIGH : LOW);
         break;
 
-        case PIN_POS_CONTACTOR:
-            digitalWrite(PIN_POS_CONTACTOR, state || contactorTest == ContactorTest::Positive ? HIGH : LOW);
+    case PIN_POS_CONTACTOR:
+        digitalWrite(PIN_POS_CONTACTOR, state || contactorTest == ContactorTest::Positive ? HIGH : LOW);
         break;
 
-        case PIN_NEG_CONTACTOR:
-            digitalWrite(PIN_NEG_CONTACTOR, state || contactorTest == ContactorTest::Negative ? HIGH : LOW);
+    case PIN_NEG_CONTACTOR:
+        digitalWrite(PIN_NEG_CONTACTOR, state || contactorTest == ContactorTest::Negative ? HIGH : LOW);
         break;
 
-        default:
+    default:
         break;
     }
 }
@@ -256,12 +301,12 @@ void SetContactorForTesting(int value)
 {
     ContactorTest enumValue = (ContactorTest)value;
 
-    if(enumValue != ContactorTest::None)
+    if (enumValue != ContactorTest::None)
         SetContactor((int)contactorTest, false);
 
     contactorTest = enumValue;
 
-    if(enumValue != ContactorTest::None)
+    if (enumValue != ContactorTest::None)
         SetContactor((int)contactorTest, true);
 }
 
@@ -297,7 +342,10 @@ bool prechargeComplete = false;
 float lastInverterVoltage;
 float lastInverterVoltageTime;
 
-bool IsPDMEnabled() { return prechargeComplete && PDM_CAN_Enabled; }
+bool IsPDMEnabled()
+{
+    return prechargeComplete && PDM_CAN_Enabled;
+}
 
 void ClearHVData()
 {
@@ -315,7 +363,7 @@ bool IsIgnitionOn()
 void CheckIgnition()
 {
     ignitionFilter.SetData(!digitalRead(PIN_IGNITION)); // PIN ON BY DEFAULT : INPUT_PULLUP
-    
+
     if (ignitionFilter.GetData() || pdmStatus.plugInserted)
     {
         if (!ignitionOn)
@@ -335,21 +383,21 @@ void CheckIgnition()
 
 void CheckDriveMode()
 {
-    if(pdmStatus.plugInserted)
+    if (pdmStatus.plugInserted)
     {
         driveMode = false;
         return;
     }
 
     driveModeFilter.SetData(!digitalRead(PIN_DRIVE_MODE)); // PIN ON BY DEFAULT : INPUT_PULLUP
-    
+
     if (ignitionOn && driveModeFilter.GetData())
     {
         if (!driveMode)
             PrintSerialMessage("Drive mode on");
         driveMode = true;
     }
-    else if(!ignitionOn)
+    else if (!ignitionOn)
     {
         if (driveMode)
             PrintSerialMessage("Drive mode off");
@@ -424,7 +472,7 @@ void SendHeartBeat()
 
 void Msgs10msPDM()
 {
-    if(!IsPDMEnabled())
+    if (!IsPDMEnabled())
         return;
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -434,27 +482,31 @@ void Msgs10msPDM()
 
     static byte counter_1dc = 0; // E
 
-    ushort tmp_powerLimitOut = powerLimitOut * 4;  // X
-    ushort tmp_powerLimitIn = powerLimitIn * 4;    // Y
+    ushort tmp_powerLimitOut = powerLimitOut * 4;         // X
+    ushort tmp_powerLimitIn = powerLimitIn * 4;           // Y
     ushort tmp_chargingLimit = (chargingLimit + 10) * 10; // Z
-    byte chargePowerStatus = 1; // W   00b = Reserved 01b = Normal limit PIN 10b = High rate limit PIN 11b = Immediate limit PIN
-    byte uprateMode = 1; // A   BPC MAX Uprate Level 1-8. 
-    // Dala: (CAN-bridge testing) This value specifies how quickly the VCM follows the requested power in "LB_MAX_POWER_FOR_CHARGER".
-    // ZE0 Example, if Level 1 is selected and battery requests 45kW of quickcharging power, it will take 8minutes for power to ramp up from 0kW->45kW. 
-    // If Level 8 is selected, it will take not ramp at all, and just intantaneously follow the requested power. 
-    // If low level is forced, some quickcharging stations will fail to charge the vehicle, with an error message stating that too low current was demanded. 
-    // Special notes for AZE0, the newer AZE0 VCM will ramp more aggressively at level 1 compared to ZE0, and no issues with fastcharging even though slow ramp rate is selected.
-    byte codeCondition = 3; // B ?? "Pursuit be advised, this chase is now condition 5, condition 5. Federal units are now in control of this chase."
-    byte code1 = 51; // C ??
-    byte code2 = 52; // D ??
+    byte chargePowerStatus =
+        1; // W   00b = Reserved 01b = Normal limit PIN 10b = High rate limit PIN 11b = Immediate limit PIN
+    byte uprateMode = 1; // A   BPC MAX Uprate Level 1-8.
+    // Dala: (CAN-bridge testing) This value specifies how quickly the VCM follows the requested power in
+    // "LB_MAX_POWER_FOR_CHARGER". ZE0 Example, if Level 1 is selected and battery requests 45kW of quickcharging power,
+    // it will take 8minutes for power to ramp up from 0kW->45kW. If Level 8 is selected, it will take not ramp at all,
+    // and just intantaneously follow the requested power. If low level is forced, some quickcharging stations will fail
+    // to charge the vehicle, with an error message stating that too low current was demanded. Special notes for AZE0,
+    // the newer AZE0 VCM will ramp more aggressively at level 1 compared to ZE0, and no issues with fastcharging even
+    // though slow ramp rate is selected.
+    byte codeCondition = 3; // B ?? "Pursuit be advised, this chase is now condition 5, condition 5. Federal units are
+                            // now in control of this chase."
+    byte code1 = 51;        // C ??
+    byte code2 = 52;        // D ??
 
-    outFrame[0] = tmp_powerLimitOut >> 2;                                               // XXXX XXXX
-    outFrame[1] = tmp_powerLimitOut << 6 | (0x3F & tmp_powerLimitIn >> 4);              // XXYY YYYY
-    outFrame[2] = tmp_powerLimitIn << 4 | (0x0F & tmp_chargingLimit >> 6);              // YYYY ZZZZ
-    outFrame[3] = tmp_chargingLimit << 2 | (0x03 & chargePowerStatus);                  // ZZZZ ZZWW
-    outFrame[4] = uprateMode << 5 | (0x1C & codeCondition << 2) | (0x03 & code1 >> 6);  // AAAB BBCC
-    outFrame[5] = code1 << 2 | (0x03 & code2 >> 6);                                     // CCCC CCDD
-    outFrame[6] = code2 << 2 | (0x03 & counter_1dc);                                    // DDDD DDEE
+    outFrame[0] = tmp_powerLimitOut >> 2;                                              // XXXX XXXX
+    outFrame[1] = tmp_powerLimitOut << 6 | (0x3F & tmp_powerLimitIn >> 4);             // XXYY YYYY
+    outFrame[2] = tmp_powerLimitIn << 4 | (0x0F & tmp_chargingLimit >> 6);             // YYYY ZZZZ
+    outFrame[3] = tmp_chargingLimit << 2 | (0x03 & chargePowerStatus);                 // ZZZZ ZZWW
+    outFrame[4] = uprateMode << 5 | (0x1C & codeCondition << 2) | (0x03 & code1 >> 6); // AAAB BBCC
+    outFrame[5] = code1 << 2 | (0x03 & code2 >> 6);                                    // CCCC CCDD
+    outFrame[6] = code2 << 2 | (0x03 & counter_1dc);                                   // DDDD DDEE
 
     // Zombie verter hard coded nessage
     // Discharge power limit 110kw
@@ -465,9 +517,9 @@ void Msgs10msPDM()
     // Code condition: 2
     // code1: 48
     // code2: 49
-    /*outFrame[0] = 0x6E; 
-    outFrame[1] = 0x02; 
-    outFrame[2] = 0xDF; 
+    /*outFrame[0] = 0x6E;
+    outFrame[1] = 0x02;
+    outFrame[2] = 0xDF;
     outFrame[3] = 0xFD;
     outFrame[4] = 0x08;
     outFrame[5] = 0xC0;
@@ -487,7 +539,7 @@ void Msgs10msPDM()
     Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;
     memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);
 
-    //can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+    // can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
@@ -500,7 +552,7 @@ void Msgs10msPDM()
     //    so 0x64=100. 0xA0=160. so 60 decimal steps. 1 step=100W???
     /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    ushort zeroChargeDefaultAmount = 100; // Baseline is 100 or 0x64
+    ushort zeroChargeDefaultAmount = 100;                  // Baseline is 100 or 0x64
     ushort AC_ChargePower = zeroChargeDefaultAmount + 330; // 10 bits max, 1 = 100W, set to 3.3kw
 
     static byte counter_1f2 = 0;
@@ -731,9 +783,9 @@ void Msgs10ms()
     can->Transmit(MsgID::CmdTorque, 8, outFrame);
 
     // We need to send 0x1db here with voltage measured by inverter
-    short TMP_battI =
-        inverterStatus.stats.motorPower * 2000.0f / (float)inverterStatus.inverterVoltage; //(Param::Get(Param::idc)) * 2;
-    short TMP_battV = inverterStatus.inverterVoltage * 4;                            //(Param::Get(Param::udc)) * 4;
+    short TMP_battI = inverterStatus.stats.motorPower * 2000.0f /
+                      (float)inverterStatus.inverterVoltage; //(Param::Get(Param::idc)) * 2;
+    short TMP_battV = inverterStatus.inverterVoltage * 4;    //(Param::Get(Param::udc)) * 4;
 
     outFrame[0] = TMP_battI >> 8;   // MSB current. 11 bit signed MSBit first
     outFrame[1] = TMP_battI & 0xE0; // LSB current bits 7-5. Dont need to mess with bits 0-4 for now as 0 works.
@@ -756,7 +808,7 @@ void Msgs10ms()
 
 void Msgs100msPDM()
 {
-    if(!IsPDMEnabled())
+    if (!IsPDMEnabled())
         return;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -828,13 +880,21 @@ void ToggleThrottlePrint()
 void ReadPedals()
 {
     float normalizedThrottle = throttleManager.GetNormalizedThrottle();
+    final_torque_request = 0;
 
     if (torqueRequestOverride != 0)
         final_torque_request = torqueRequestOverride;
-    else if(driveMode && prechargeComplete)
-        final_torque_request = MaxTorque * normalizedThrottle;
-    else
-        final_torque_request = 0;
+    else if (driveMode && prechargeComplete)
+    {
+        if(normalizedThrottle < 0.01f && regenEnabled)
+        {
+            float normalizedRegen = (inverterStatus.stats.rpm - minRegenRPM) / (maxRegenRPM - minRegenRPM);
+            normalizedRegen = max(0, min(1, normalizedRegen));
+            final_torque_request = -regenTorque * normalizedRegen;
+        }
+        else
+            final_torque_request = MaxTorque * normalizedThrottle;
+    }
 }
 
 static float FahrenheitToCelsius(unsigned char fahrenheitRawValue)
@@ -921,12 +981,12 @@ void ReadCAN()
 
     case MsgID::RcvPlugStatus:
         pdmStatus.plugVoltageMode = (inFrame[3] >> 3) & 0x03;
-        pdmStatus.activePowerKw = inFrame[1] * 0.1f; // Power in 0.1kW
+        pdmStatus.activePowerKw = inFrame[1] * 0.1f;    // Power in 0.1kW
         pdmStatus.availablePowerKw = inFrame[6] * 0.1f; // Power in 0.1kW
 
-        if(pdmStatus.plugVoltageMode == 0x1)
+        if (pdmStatus.plugVoltageMode == 0x1)
             pdmStatus.plugVoltage = 110;
-        else if(pdmStatus.plugVoltageMode == 0x2)
+        else if (pdmStatus.plugVoltageMode == 0x2)
             pdmStatus.plugVoltage = 230;
         else
             pdmStatus.plugVoltage = 0;
@@ -948,7 +1008,7 @@ void ReadCAN()
         }
         break;
 
-        case MsgID::RcvPlugInsert:
+    case MsgID::RcvPlugInsert:
         PrintSerialMessage("J1772 plug detected!");
         break;
 
@@ -993,9 +1053,9 @@ void Tick()
 
     ReadCAN();
 
-    if(timer_Frames100.HasTriggered())
+    if (timer_Frames100.HasTriggered())
         Msgs100ms();
-    if(timer_Frames10.HasTriggered())
+    if (timer_Frames10.HasTriggered())
         Msgs10ms();
 
     PrintFailures();

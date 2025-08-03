@@ -185,6 +185,33 @@ void SetMaxTorque()
         PrintSerialMessage("Torque set to " + ToString(request));
 }
 
+void SetRegenTorque()
+{
+    if (parameters.size() == 0)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    short request = parameters[0].toInt();
+    if(VCU::SetRegenTorque(request))
+        PrintSerialMessage("Regen torque set to " + ToString(request));
+}
+
+void SetMinMaxRegenRPMRange()
+{
+    if (parameters.size() <= 1)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    short lowRPM = parameters[0].toInt();
+    short highRPM = parameters[1].toInt();
+    if(VCU::SetRegenRPMRange(lowRPM, highRPM))
+        PrintSerialMessage("Regen RPM range set to " + ToString(lowRPM) + "-" + ToString(highRPM));
+}
+
 void OutputHelp()
 {
     String outputStr = "Available commands:\n";
@@ -269,6 +296,8 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("printcan", PrintCan));
     commandPointers.push_back(CommandPointer("torque", SetTorque));
     commandPointers.push_back(CommandPointer("maxtorque", SetMaxTorque));
+    commandPointers.push_back(CommandPointer("regentorque", SetRegenTorque));
+    commandPointers.push_back(CommandPointer("regenrpm", SetMinMaxRegenRPMRange));
     commandPointers.push_back(CommandPointer("dischargekw", DischargeKw));
     commandPointers.push_back(CommandPointer("throttleout", GetThrottle));
     commandPointers.push_back(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
