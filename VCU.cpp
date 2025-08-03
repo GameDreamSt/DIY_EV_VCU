@@ -895,7 +895,7 @@ void ReadPedals()
     {
         if(normalizedThrottle < 0.01f && regenEnabled)
         {
-            float normalizedRegen = (inverterStatus.stats.rpm - minRegenRPM) / (maxRegenRPM - minRegenRPM);
+            float normalizedRegen = (float)(inverterStatus.stats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
             normalizedRegen = max(0, min(1, normalizedRegen));
             final_torque_request = -regenTorque * normalizedRegen;
         }
