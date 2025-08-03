@@ -9,6 +9,7 @@
 #include "SerialPrint.h"
 #include "Throttle.h"
 #include "Timer.h"
+#include "Time.h"
 #include "mcp2515.h"
 
 String Stats::GetString()
@@ -96,9 +97,11 @@ bool SetMaxTorqueRequest(short value)
 }
 
 bool regenEnabled = true;
-short regenTorque = 400;
-short minRegenRPM = 100; // Don't use 0
+short regenTorque = 200;
+short minRegenRPM = 100;  // Don't use 0
 short maxRegenRPM = 1000; // Don't use 0
+float regenSmoothTorque = 0;
+float regenSmoothTorqueTime = 2;
 bool SetRegenTorque(short value)
 {
     if (value < 0)
@@ -893,14 +896,19 @@ void ReadPedals()
         final_torque_request = torqueRequestOverride;
     else if (driveMode && prechargeComplete)
     {
-        if(normalizedThrottle < 0.01f && regenEnabled)
+        if (normalizedThrottle < 0.01f && regenEnabled)
         {
-            float normalizedRegen = (float)(inverterStatus.stats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
+            float normalizedRegen =
+                (float)(inverterStatus.stats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
             normalizedRegen = max(0, min(1, normalizedRegen));
-            final_torque_request = -regenTorque * normalizedRegen;
+            final_torque_request = -regenSmoothTorque * normalizedRegen;
+            regenSmoothTorque = max(0, min(regenSmoothTorque + regenTorque * deltaTime / regenSmoothTorqueTime, regenTorque));
         }
         else
+        {
             final_torque_request = MaxTorque * normalizedThrottle;
+            regenSmoothTorque = 0;
+        }
     }
 }
 
