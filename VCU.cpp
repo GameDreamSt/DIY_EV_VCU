@@ -53,7 +53,13 @@ Timer TimerHV = Timer(HVTimerTime);
 Timer prechargeFailureTimer = Timer(3);
 Timer throttlePrintTimer = Timer(0.1f);
 
-ThrottleManager throttleManager = ThrottleManager();
+ThrottleManager throttleManager;
+Throttle vacuumSensor = Throttle(APIN_VACUUM);
+float vacuumTimeOn;
+bool vacuumOn;
+bool vacuumPumpFailure;
+
+Throttle* GetVacuumSensor() { return &vacuumSensor; }
 
 #define LOWEST_VOLTAGE 210
 #define MAX_CHARGE_VOLTAGE 249
@@ -295,6 +301,10 @@ void SetContactor(int pinID, bool state)
         digitalWrite(PIN_NEG_CONTACTOR, state || contactorTest == ContactorTest::Negative ? HIGH : LOW);
         break;
 
+    case PIN_VACUUM_PUMP:
+        digitalWrite(PIN_VACUUM_PUMP, state || contactorTest == ContactorTest::Vacuum ? HIGH : LOW);
+        break;
+
     default:
         break;
     }
@@ -302,15 +312,20 @@ void SetContactor(int pinID, bool state)
 
 void SetContactorForTesting(int value)
 {
-    ContactorTest enumValue = (ContactorTest)value;
+    ContactorTest oldValue = contactorTest;
+    ContactorTest newValue = (ContactorTest)value;
 
-    if (enumValue != ContactorTest::None)
-        SetContactor((int)contactorTest, false);
-
-    contactorTest = enumValue;
-
-    if (enumValue != ContactorTest::None)
-        SetContactor((int)contactorTest, true);
+    if (newValue == contactorTest) // Toggle off
+    {
+        contactorTest = ContactorTest::None;
+        SetContactor((int)oldValue, false);
+    }
+    else // Switch to new
+    {
+        contactorTest = newValue;
+        SetContactor((int)oldValue, false);
+        SetContactor((int)newValue, true);
+    }
 }
 
 bool initialized = false;
@@ -328,10 +343,12 @@ void Initialize()
     pinMode(PIN_PRECHARGE, OUTPUT);
     pinMode(PIN_POS_CONTACTOR, OUTPUT);
     pinMode(PIN_NEG_CONTACTOR, OUTPUT);
+    pinMode(PIN_VACUUM_PUMP, OUTPUT);
 
     SetContactor(PIN_PRECHARGE, false);
     SetContactor(PIN_POS_CONTACTOR, false);
     SetContactor(PIN_NEG_CONTACTOR, false);
+    SetContactor(PIN_VACUUM_PUMP, false);
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
@@ -1042,8 +1059,14 @@ void ReadCAN()
 
 void PrintFailures()
 {
-    if (prechargeFailure && prechargeFailureTimer.HasTriggered())
-        PrintSerialMessage("Precharge failure! Inverter didn't reach battery voltage in 5 seconds!");
+    if(prechargeFailureTimer.HasTriggered())
+    {
+        if (prechargeFailure)
+            PrintSerialMessage("Precharge failure! Inverter didn't reach battery voltage in 5 seconds!");
+
+        if (vacuumPumpFailure)
+            PrintSerialMessage("Vacuum pump failure! Didn't reach target vacuum in some time...");
+    }
 }
 
 void PrintDebug()
@@ -1052,13 +1075,46 @@ void PrintDebug()
         PrintSerialMessage(String(throttleManager.GetNormalizedThrottle()));
 }
 
+void ControlVacuum()
+{
+    float rawValue = vacuumSensor.GetRawValue();
+    if(rawValue < 0.01f || vacuumPumpFailure || !ignitionOn) // Disconnected or failed
+    {
+        SetContactor(PIN_VACUUM_PUMP, false);
+        vacuumTimeOn = 0;
+        return;
+    }
+        
+    if(rawValue > 0.3f)
+    {
+        SetContactor(PIN_VACUUM_PUMP, true);
+        vacuumOn = true;
+    }
+    else if(rawValue < 0.15f)
+    {
+        SetContactor(PIN_VACUUM_PUMP, false);
+        vacuumOn = false;
+    }
+
+    if(vacuumOn && rawValue > 0.4f)
+        vacuumTimeOn += deltaTime;
+    else
+        vacuumTimeOn = 0;
+
+    if(vacuumTimeOn > 10)
+        vacuumPumpFailure = true;
+}
+
 void Tick()
 {
     if (can == nullptr) // Initialize later so the upload process doesn't hang up
         can = new CAN(MKRCAN_MCP2515_CS_PIN, MKRCAN_MCP2515_INT_PIN);
 
     throttleManager.Tick();
+    vacuumSensor.Tick();
+
     ReadPedals();
+    ControlVacuum();
 
     CheckIgnition();
     CheckDriveMode();

@@ -248,6 +248,12 @@ void GetThrottleDetailed()
     Throttle::printDetailedLog = !Throttle::printDetailedLog;
 }
 
+bool printVacuumSensorData;
+void PrintVacuumSensorData()
+{
+    printVacuumSensorData = !printVacuumSensorData;
+}
+
 void ToggleGen2()
 {
     if (VCU::ToggleGen2Codes())
@@ -282,6 +288,9 @@ void SetContactor()
         test = ContactorTest::Negative;
     else if(state == "p" || state == "precharge")
         test = ContactorTest::Precharge;
+    else if(state == "v" || state == "vacuum")
+        test = ContactorTest::Vacuum;
+
 
     VCU::SetContactorForTesting((int)test);
 }
@@ -301,6 +310,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("dischargekw", DischargeKw));
     commandPointers.push_back(CommandPointer("throttleout", GetThrottle));
     commandPointers.push_back(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
+    commandPointers.push_back(CommandPointer("vacuum", PrintVacuumSensorData));
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
     commandPointers.push_back(CommandPointer("togglepdmcan", TogglePDMCAN));
     commandPointers.push_back(CommandPointer("testcontactor", SetContactor));
@@ -359,5 +369,8 @@ void TickSerialReader()
     {
         if (shouldOutputStatus)
             PrintInverterStatus();
+
+        if(printVacuumSensorData)
+            VCU::GetVacuumSensor()->PrintDebugValues();
     }
 }

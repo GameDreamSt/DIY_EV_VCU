@@ -26,6 +26,8 @@ class Throttle
     void Reset();
 
     float GetNormalizedThrottle();
+    void PrintDebugValues();
+    float GetRawValue();
 
     std::vector<unsigned char> Save();
     void Load(std::vector<unsigned char> data);

@@ -7,4 +7,5 @@ enum ContactorTest
     Precharge = PIN_PRECHARGE,
     Negative = PIN_NEG_CONTACTOR,
     Positive = PIN_POS_CONTACTOR,
+    Vacuum = PIN_VACUUM_PUMP,
 };

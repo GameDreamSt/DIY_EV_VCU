@@ -2,6 +2,7 @@
 #include <vector>
 
 class String;
+class Throttle;
 
 enum PDMType
 {
@@ -64,6 +65,7 @@ bool SetRegenRPMRange(short lowRPM, short highRPM);
 
 void SetBatteryDischargeLimit(float kilowatts);
 void ToggleThrottlePrint();
+Throttle* GetVacuumSensor();
 
 bool ToggleGen2Codes();
 bool TogglePDMCAN();

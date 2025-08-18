@@ -32,13 +32,18 @@ float Throttle::GetAverageAnalog()
     return voltage_temp_average / (float)READ_AVG;
 }
 
+void Throttle::PrintDebugValues()
+{
+    PrintSerialMessage("T" + String(analogPin) + ": " + String(currentThrottle) + " " + String(lowestValue) + " " +
+                           String(highestValue) + " " + String(GetNormalizedThrottle()));
+}
+
 void Throttle::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
     if (printDetailedLog)
-        PrintSerialMessage("T" + String(analogPin) + ": " + String(currentThrottle) + " " + String(lowestValue) + " " +
-                           String(highestValue) + " " + String(GetNormalizedThrottle()));
+        PrintDebugValues();
 
     if (currentThrottle < 0.05f) // If below 5% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
     {
@@ -60,6 +65,11 @@ void Throttle::Tick()
         beingCalibrated = true;
     }
 }
+
+ float Throttle::GetRawValue()
+ {
+    return currentThrottle;
+ }
 
 void Throttle::Reset()
 {
