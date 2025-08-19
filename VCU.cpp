@@ -367,6 +367,11 @@ bool IsPDMEnabled()
     return prechargeComplete && PDM_CAN_Enabled;
 }
 
+bool WantsToCharge()
+{
+    return ignitionOn && prechargeComplete && IsPDMEnabled() && pdmStatus.plugInserted;
+}
+
 void ClearHVData()
 {
     lastInverterVoltageTime = lastInverterVoltage = prechargeToFailureTime = 0;
@@ -644,11 +649,11 @@ void Msgs10ms()
     //   E: this also is a usual value, but never occurs with the
     //      non-gears 0 and 1 (44% of the time in LeafLogs)
 
-    outFrame[0] = pdmStatus.plugInserted ? 0x01 : 0x4E;
+    outFrame[0] = WantsToCharge() ? 0x01 : 0x4E;
     // outFrame[0] = 0x01;
 
     // 0x40 when car is ON, 0x80 when OFF, 0x50 when ECO
-    outFrame[1] = pdmStatus.plugInserted ? 0x80 : 0x40;
+    outFrame[1] = WantsToCharge() ? 0x80 : 0x40;
 
     // Usually 0x00, sometimes 0x80 (LeafLogs), 0x04 seen by canmsgs
     outFrame[2] = 0x00;
@@ -790,7 +795,7 @@ void Msgs10ms()
     // 0x00 when in park and brake released.
     // 0x20 when brake lightly pressed in park.
     // 0x30 when brake heavilly pressed in park.
-    outFrame[6] = pdmStatus.plugInserted ? 0xE0 : (gen2Codes ? 0x01 : 0x30);
+    outFrame[6] = WantsToCharge() ? 0xE0 : (gen2Codes ? 0x01 : 0x30);
 
     // Value chosen from a 2016 log
     // outFrame[6] = 0x61;
