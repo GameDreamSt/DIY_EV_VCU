@@ -49,6 +49,7 @@ TimedFilter<bool> driveModeFilter = TimedFilter<bool>(100);
 
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
+Timer timer_Frames500 = Timer(0.5f);
 Timer TimerHV = Timer(HVTimerTime);
 Timer prechargeFailureTimer = Timer(3);
 Timer throttlePrintTimer = Timer(0.1f);
@@ -213,7 +214,7 @@ enum MsgID
     CmdBatteryCapacity = 0x59E,
     CmdChargeStatus = 0x5BC,
     RcvPlugStatus = 0x390,
-    RcvPlugInsert = 0x679,
+    RcvPDMWakeup = 0x679,
 
     RcvPDMModel_AZE0_2014_2017 = 0x393,
     RcvPDMModel_ZE1_2018 = 0x1ED,
@@ -367,9 +368,21 @@ bool IsPDMEnabled()
     return prechargeComplete && PDM_CAN_Enabled;
 }
 
+bool wantedToCharge;
 bool WantsToCharge()
 {
-    return ignitionOn && prechargeComplete && IsPDMEnabled() && pdmStatus.plugInserted;
+    bool value = ignitionOn && prechargeComplete && IsPDMEnabled() && pdmStatus.plugInserted;
+
+    if(wantedToCharge != value)
+    {
+        wantedToCharge = value;
+        if(value)
+            PrintSerialMessage("Initializing charging mode");
+        else
+            PrintSerialMessage("Stopping charging mode");
+    }
+
+    return value;
 }
 
 void ClearHVData()
@@ -591,18 +604,18 @@ void Msgs10msPDM()
 
     /*
     Byte 2:
-    00000b 0x0 = Quick charge
-    00101b 0x5 = Normal Charge 6kw Full charge
-    01000b 0x8 = Normal Charge 200V Full charge
-    01011b 0xB = Normal Charge 100V Full charge
-    10010b 0x12 = Normal Charge 6kw long life charge
-    10101b 0x15 = Normal Charge 200V long life charge
-    11000b 0x18 = Normal Charge 100V long life charge
-    11111b 0x1F = Invalid value
+    0 0000b 0x0 = Quick charge
+    0 0101b 0x5 = Normal Charge 6kw Full charge
+    0 1000b 0x8 = Normal Charge 200V Full charge
+    0 1011b 0xB = Normal Charge 100V Full charge
+    1 0010b 0x12 = Normal Charge 6kw long life charge
+    1 0101b 0x15 = Normal Charge 200V long life charge
+    1 1000b 0x18 = Normal Charge 100V long life charge
+    1 1111b 0x1F = Invalid value
     */
 
     // 0x00 chg 0ff dcdc on.
-    outFrame[0] = 0x03 & AC_ChargePower >> 6;
+    outFrame[0] = 0x03 & AC_ChargePower >> 8;
     outFrame[1] = AC_ChargePower;
     outFrame[2] = 0x20; // 0x20 = Normal Charge
     outFrame[3] = 0xAC;
@@ -713,8 +726,7 @@ void Msgs10ms()
     //   3: Precharging (0.4%)
     //   5: Starting discharge (3x10ms) (2.0%)
     //   7: Precharged (93%)
-    outFrame[4] = 0x07 | (counter_1d4 << 6);
-    // outFrame[4] = 0x02 | (counter_1d4 << 6);
+    outFrame[4] = 0x02 | (counter_1d4 << 6);
 
     counter_1d4++;
     if (counter_1d4 >= 4)
@@ -864,20 +876,6 @@ void Msgs100msPDM()
     can->Transmit(MsgID::CmdSOC, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
-    // CAN Message 0x59E:
-
-    outFrame[0] = 0x00; // Static msg works fine here
-    outFrame[1] = 0x00; // Batt capacity for chg and qc.
-    outFrame[2] = 0x0c;
-    outFrame[3] = 0x76;
-    outFrame[4] = 0x18;
-    outFrame[5] = 0x00;
-    outFrame[6] = 0x00;
-    outFrame[7] = 0x00;
-
-    can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x5BC:
 
     // muxed msg with info for gids etc. Will try static for a test.
@@ -893,6 +891,26 @@ void Msgs100msPDM()
     can->Transmit(MsgID::CmdChargeStatus, 8, outFrame);
 }
 
+void Msgs500msPDM()
+{
+    if (!IsPDMEnabled())
+        return;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    // CAN Message 0x59E:
+
+    outFrame[0] = 0x00; // Static msg works fine here
+    outFrame[1] = 0x00; // Batt capacity for chg and qc.
+    outFrame[2] = 0x0c;
+    outFrame[3] = 0x76;
+    outFrame[4] = 0x18;
+    outFrame[5] = 0x00;
+    outFrame[6] = 0x00;
+    outFrame[7] = 0x00;
+
+    can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
+}
+
 void Msgs100ms()
 {
     if (!can_status)
@@ -900,6 +918,14 @@ void Msgs100ms()
 
     Msgs100msPDM();
     SendHeartBeat();
+}
+
+void Msgs500ms()
+{
+    if(!can_status)
+        return;
+
+    Msgs500msPDM();
 }
 
 bool printThrottle;
@@ -961,7 +987,7 @@ void ReadCAN()
     {
     case MsgID::RcvPDMModel_AZE0_2014_2017:
     case MsgID::RcvPDMModel_ZE1_2018:
-    case MsgID::RcvPlugInsert:
+    case MsgID::RcvPDMWakeup:
     case MsgID::RcvPlugStatus:
     case MsgID::RcvInverterState:
     case MsgID::RcvTempF:
@@ -1045,8 +1071,8 @@ void ReadCAN()
         }
         break;
 
-    case MsgID::RcvPlugInsert:
-        PrintSerialMessage("J1772 plug detected!");
+    case MsgID::RcvPDMWakeup:
+        PrintSerialMessage("PDM has woken up");
         break;
 
     case MsgID::RcvPDMModel_AZE0_2014_2017:
@@ -1129,6 +1155,8 @@ void Tick()
 
     ReadCAN();
 
+    if (timer_Frames500.HasTriggered())
+        Msgs500ms();
     if (timer_Frames100.HasTriggered())
         Msgs100ms();
     if (timer_Frames10.HasTriggered())
