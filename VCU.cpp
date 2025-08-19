@@ -11,6 +11,7 @@
 #include "Timer.h"
 #include "Time.h"
 #include "mcp2515.h"
+#include "ChargerSimulator.h"
 
 String Stats::GetString()
 {
@@ -1139,7 +1140,10 @@ void ControlVacuum()
 void Tick()
 {
     if (can == nullptr) // Initialize later so the upload process doesn't hang up
+    {
         can = new CAN(MKRCAN_MCP2515_CS_PIN, MKRCAN_MCP2515_INT_PIN);
+        ProvideCanCommunicator(can);
+    }
 
     throttleManager.Tick();
     vacuumSensor.Tick();
@@ -1156,11 +1160,11 @@ void Tick()
     ReadCAN();
 
     if (timer_Frames500.HasTriggered())
-        Msgs500ms();
+        SendChargingSimBattery500msMessage();
     if (timer_Frames100.HasTriggered())
-        Msgs100ms();
+        SendChargingSimBattery100msMessage();
     if (timer_Frames10.HasTriggered())
-        Msgs10ms();
+        SendChargeStateCan10msMessage();
 
     PrintFailures();
     PrintDebug();
