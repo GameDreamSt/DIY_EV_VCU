@@ -514,9 +514,9 @@ void Msgs10msPDM()
     // to charge the vehicle, with an error message stating that too low current was demanded. Special notes for AZE0,
     // the newer AZE0 VCM will ramp more aggressively at level 1 compared to ZE0, and no issues with fastcharging even
     // though slow ramp rate is selected.
-    byte codeCondition = 3; // B ?? "Pursuit be advised, this chase is now condition 5, condition 5. Federal units are now in control of this chase."
-    byte code1 = 51;        // C ??
-    byte code2 = 52;        // D ??
+    byte codeCondition = 0; // B VCU paring code selection
+    byte code1 = 0;         // C VCU pairing code 1 for this condition
+    byte code2 = 0;         // D VCU pairing code 2 for this condition
 
     outFrame[0] = tmp_powerLimitOut >> 2;                                              // XXXX XXXX
     outFrame[1] = tmp_powerLimitOut << 6 | (0x3F & tmp_powerLimitIn >> 4);             // XXYY YYYY
@@ -566,7 +566,7 @@ void Msgs10msPDM()
     Rolled_1DC_Frames[3] = 0x6e0c2ffd08c0c3d8;
     memcpy(outFrame, &Rolled_1DC_Frames[counter_1dc], 8);)*/
 
-    //can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
+    can->Transmit(MsgID::CmdPowerLimits, 8, outFrame);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // CAN Message 0x1F2: Charge Power and DC/DC Converter Control
@@ -602,7 +602,7 @@ void Msgs10msPDM()
     outFrame[2] = 0x20; // 0x20 = Normal Charge
     outFrame[3] = 0xAC;
     outFrame[4] = 0x00;
-    outFrame[5] = 0x1E;
+    outFrame[5] = 0x3C;
     outFrame[6] = counter_1f2;
 
     CAN_ChecksumNibble(outFrame, 2, 0x0F);
@@ -644,11 +644,11 @@ void Msgs10ms()
     //   E: this also is a usual value, but never occurs with the
     //      non-gears 0 and 1 (44% of the time in LeafLogs)
 
-    outFrame[0] = 0x4E;
+    outFrame[0] = pdmStatus.plugInserted ? 0x01 : 0x4E;
     // outFrame[0] = 0x01;
 
     // 0x40 when car is ON, 0x80 when OFF, 0x50 when ECO
-    outFrame[1] = 0x40;
+    outFrame[1] = pdmStatus.plugInserted ? 0x80 : 0x40;
 
     // Usually 0x00, sometimes 0x80 (LeafLogs), 0x04 seen by canmsgs
     outFrame[2] = 0x00;
@@ -790,7 +790,7 @@ void Msgs10ms()
     // 0x00 when in park and brake released.
     // 0x20 when brake lightly pressed in park.
     // 0x30 when brake heavilly pressed in park.
-    outFrame[6] = gen2Codes ? 0x01 : 0x30;
+    outFrame[6] = pdmStatus.plugInserted ? 0xE0 : (gen2Codes ? 0x01 : 0x30);
 
     // Value chosen from a 2016 log
     // outFrame[6] = 0x61;
@@ -830,7 +830,6 @@ void Msgs10ms()
     can->Transmit(MsgID::CmdBatteryState, 8, outFrame);
 
     Msgs10msPDM();
-    SendHeartBeat();
 }
 
 void Msgs100msPDM()
@@ -1037,6 +1036,7 @@ void ReadCAN()
             if (pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug disconnected");
             pdmStatus.plugInserted = false;
+            pdmStatus.plugAmpsType = 0;
         }
         break;
 
