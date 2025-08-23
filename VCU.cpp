@@ -20,12 +20,70 @@ String Stats::GetString()
            "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
 }
 
+String ChargerStatusToString(unsigned char status)
+{
+    switch(status)
+    {
+        case 0:
+            return "Charger Off";
+
+        case 1:
+            return "Idle or QuickCharging";
+
+        case 2:
+            return "Finished charging";
+
+        case 4:
+            return "Charging or was interrupted";
+
+        case 8:
+        case 9:
+            return "Idle";
+
+        case 12:
+            return "Plugged in, waiting on timer";
+
+        default:
+            return "Unknown state '" + ToString(status) + "'";
+    }
+}
+
+String DCtoDCStatusString(unsigned char status)
+{
+    switch(status)
+    {
+        default:
+            return "Unknown state '" + ToString(status) + "'";
+        case 1:
+            return "DCtoDC Active";
+        case 3:
+            return "DCtoDC Inactive";
+    }
+}
+
+String PDMSleepEnabledString(unsigned char status)
+{
+    switch(status)
+    {
+        default:
+            return "Unknown state '" + ToString(status) + "'";
+        case 1:
+            return "Sleep enabled";
+        case 2:
+            return "Sleep disabled";
+    }
+}
+
 String PDMStatus::GetString()
 {
-    return "AC Voltage: " + FloatToString(plugVoltage, 0) + " V" + "\nAC voltage mode: " + ToString(plugVoltageMode) +
-           " V" + "\nActive power: " + FloatToString(activePowerKw, 1) + " kw" +
+    return "AC Voltage: " + FloatToString(plugVoltage, 0) + " V" + 
+           "\nAC voltage mode: " + ToString(plugVoltageMode) + " V" +
+           "\nActive power: " + FloatToString(activePowerKw, 1) + " kw" +
            "\nAvailable power: " + FloatToString(availablePowerKw, 1) + " kw" +
-           "\nIs plug inserted: " + BoolToString(plugInserted) + "\nPlug amperage: " + ToString(plugAmpsType);
+           "\nIs plug inserted: " + BoolToString(plugInserted) + 
+           "\nCharger status: " + ChargerStatusToString(chargerStatus) +
+           "\nDCtoDC status: " + DCtoDCStatusString(DCtoDCStatus) +
+           "\nSleep enabled: " + PDMSleepEnabledString(sleepEnabled);
 }
 
 namespace VCU
@@ -40,7 +98,6 @@ namespace VCU
 
 CAN *can = nullptr;
 byte *outFrame = new byte[8];
-byte *inFrame = new byte[8];
 
 #define HVTimerTime 0.2f
 
@@ -820,10 +877,6 @@ void Msgs10ms()
     // Extra CRC
     NissanCRC(outFrame);
 
-    /*Serial.print(F("Sending "));
-    print_fancy_inFrame(inFrame);
-    Serial.println();*/
-
     can->Transmit(MsgID::CmdTorque, 8, outFrame);
 
     // We need to send 0x1db here with voltage measured by inverter
@@ -980,6 +1033,7 @@ void ReadCAN()
         return;
     }
 
+    byte inFrame[8];
     MsgID messageType = (MsgID)recvFrame.can_id;
 
     // Check data length
@@ -987,7 +1041,6 @@ void ReadCAN()
     {
     case MsgID::RcvPDMModel_AZE0_2014_2017:
     case MsgID::RcvPDMModel_ZE1_2018:
-    case MsgID::RcvPDMWakeup:
     case MsgID::RcvPlugStatus:
     case MsgID::RcvInverterState:
     case MsgID::RcvTempF:
@@ -999,15 +1052,17 @@ void ReadCAN()
         }
         break;
 
+    case MsgID::RcvPDMWakeup: // No data required
+        break;
+
     default:
         PrintSerialMessageHEX("Received my own command?? ID: ", recvFrame.can_id);
         return;
     }
 
-    memcpy(inFrame, recvFrame.data, recvFrame.can_dlc);
+    memcpy(&inFrame, recvFrame.data, recvFrame.can_dlc);
 
-    short parsed_speed, torque, rpm;
-    byte plugStatus;
+    short torque, rpm;
 
     // Handle CAN message
     switch (messageType)
@@ -1042,32 +1097,33 @@ void ReadCAN()
         break;
 
     case MsgID::RcvPlugStatus:
+        pdmStatus.sleepEnabled = (inFrame[0] >> 2) & 0x03;
+        pdmStatus.DCtoDCStatus = (inFrame[3] >> 1) & 0x03;
         pdmStatus.plugVoltageMode = (inFrame[3] >> 3) & 0x03;
         pdmStatus.activePowerKw = inFrame[1] * 0.1f;    // Power in 0.1kW
         pdmStatus.availablePowerKw = inFrame[6] * 0.1f; // Power in 0.1kW
 
-        if (pdmStatus.plugVoltageMode == 0x1)
+        if (pdmStatus.plugVoltageMode == 1)
             pdmStatus.plugVoltage = 110;
-        else if (pdmStatus.plugVoltageMode == 0x2)
+        else if (pdmStatus.plugVoltageMode == 2)
             pdmStatus.plugVoltage = 230;
+        else if (pdmStatus.plugVoltageMode == 3)
+            pdmStatus.plugVoltage = -1; // i.e. abnormal
         else
             pdmStatus.plugVoltage = 0;
 
-        plugStatus = inFrame[5] & 0x0F;
-        if (plugStatus == 0x08 || plugStatus == 0x04) // 32A vs 16A plugs
+        pdmStatus.chargerStatus = (inFrame[5] >> 1) & 0x3F;
+        if (pdmStatus.chargerStatus > 0) // Charging plug plugged in?
         {
-            pdmStatus.plugAmpsType = plugStatus == 0x08 ? 32 : 16;
-
             if (!pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug inserted");
             pdmStatus.plugInserted = true;
         }
-        if (plugStatus == 0x00)
+        else
         {
             if (pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug disconnected");
             pdmStatus.plugInserted = false;
-            pdmStatus.plugAmpsType = 0;
         }
         break;
 

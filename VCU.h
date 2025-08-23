@@ -13,12 +13,14 @@ enum PDMType
 
 struct PDMStatus
 {
+    unsigned char sleepEnabled;
     float plugVoltage;
     unsigned char plugVoltageMode;
     float activePowerKw;
     float availablePowerKw;
     bool plugInserted;
-    unsigned char plugAmpsType;
+    unsigned char chargerStatus;
+    unsigned char DCtoDCStatus;
 
     String GetString();
 };
