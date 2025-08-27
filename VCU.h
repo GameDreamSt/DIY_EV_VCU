@@ -15,7 +15,6 @@ struct PDMStatus
 {
     unsigned char sleepEnabled;
     float plugVoltage;
-    unsigned char plugVoltageMode;
     float activePowerKw;
     float availablePowerKw;
     bool plugInserted;

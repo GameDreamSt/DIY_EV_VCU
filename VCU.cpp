@@ -78,7 +78,6 @@ String PDMSleepEnabledString(unsigned char status)
 String PDMStatus::GetString()
 {
     return "AC Voltage: " + FloatToString(plugVoltage, 0) + " V" + 
-           "\nAC voltage mode: " + ToString(plugVoltageMode) + " V" +
            "\nActive power: " + FloatToString(activePowerKw, 1) + " kw" +
            "\nAvailable power: " + FloatToString(availablePowerKw, 1) + " kw" +
            "\nIs plug inserted: " + BoolToString(plugInserted) + 
@@ -253,6 +252,24 @@ PDMStatus pdmStatus;
 PDMStatus GetPDMStatus()
 {
     return pdmStatus;
+}
+
+bool ChargerStatusPlugInserted()
+{
+    switch(pdmStatus.chargerStatus)
+    {
+        case 1: // Idle or quickcharging TODO: check QC voltage?
+        case 2: // Finished charging     
+        case 4: // Charging or was interrupted
+        case 12: // Plugged in, waiting on timer
+            return true; 
+
+        case 0: // Off
+        case 8: // Idle
+        case 9: // Idle
+        default:
+            return false;
+    }
 }
 
 enum MsgID
@@ -1064,6 +1081,7 @@ void ReadCAN()
     memcpy(&inFrame, recvFrame.data, recvFrame.can_dlc);
 
     short torque, rpm;
+    byte plugVoltageMode;
 
     // Handle CAN message
     switch (messageType)
@@ -1100,21 +1118,21 @@ void ReadCAN()
     case MsgID::RcvPlugStatus:
         pdmStatus.sleepEnabled = (inFrame[0] >> 2) & 0x03;
         pdmStatus.DCtoDCStatus = (inFrame[3] >> 1) & 0x03;
-        pdmStatus.plugVoltageMode = (inFrame[3] >> 3) & 0x03;
+        plugVoltageMode = (inFrame[3] >> 3) & 0x03;
         pdmStatus.activePowerKw = inFrame[1] * 0.1f;    // Power in 0.1kW
         pdmStatus.availablePowerKw = inFrame[6] * 0.1f; // Power in 0.1kW
 
-        if (pdmStatus.plugVoltageMode == 1)
+        if (plugVoltageMode == 1)
             pdmStatus.plugVoltage = 110;
-        else if (pdmStatus.plugVoltageMode == 2)
+        else if (plugVoltageMode == 2)
             pdmStatus.plugVoltage = 230;
-        else if (pdmStatus.plugVoltageMode == 3)
+        else if (plugVoltageMode == 3)
             pdmStatus.plugVoltage = -1; // i.e. abnormal
         else
             pdmStatus.plugVoltage = 0;
 
         pdmStatus.chargerStatus = (inFrame[5] >> 1) & 0x3F;
-        if (pdmStatus.chargerStatus > 0) // Charging plug plugged in?
+        if (ChargerStatusPlugInserted())
         {
             if (!pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug inserted");
