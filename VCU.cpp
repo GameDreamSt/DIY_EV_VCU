@@ -253,6 +253,24 @@ PDMStatus GetPDMStatus()
     return pdmStatus;
 }
 
+bool ChargerStatusPlugInserted()
+{
+    switch(pdmStatus.chargerStatus)
+    {
+        case 1: // Idle or quickcharging TODO: check QC voltage?
+        case 2: // Finished charging     
+        case 4: // Charging or was interrupted
+        case 12: // Plugged in, waiting on timer
+            return true; 
+
+        case 0: // Off
+        case 8: // Idle
+        case 9: // Idle
+        default:
+            return false;
+    }
+}
+
 enum MsgID
 {
     // Inverter IDs
@@ -1113,7 +1131,7 @@ void ReadCAN()
             pdmStatus.plugVoltage = 0;
 
         pdmStatus.chargerStatus = (inFrame[5] >> 1) & 0x3F;
-        if (pdmStatus.chargerStatus > 0) // Charging plug plugged in?
+        if (ChargerStatusPlugInserted())
         {
             if (!pdmStatus.plugInserted)
                 PrintSerialMessage("Charging plug inserted");
