@@ -714,8 +714,6 @@ void Msgs10ms()
     static byte counter_11a_d6 = 0;
     static byte counter_1d4 = 0;
     static byte counter_1db = 0;
-    static byte counter_329 = 0;
-    static byte counter_100ms = 0;
 
     // Send VCM gear selection signal (gets rid of P3197)
     // Data taken from a gen1 inFrame where the car is starting to
@@ -737,8 +735,6 @@ void Msgs10ms()
     //      non-gears 0 and 1 (44% of the time in LeafLogs)
 
     outFrame[0] = WantsToCharge() ? 0x01 : 0x4E;
-    // outFrame[0] = 0x01;
-
     // 0x40 when car is ON, 0x80 when OFF, 0x50 when ECO
     outFrame[1] = WantsToCharge() ? 0x80 : 0x40;
 
@@ -800,7 +796,7 @@ void Msgs10ms()
     //   3: Precharging (0.4%)
     //   5: Starting discharge (3x10ms) (2.0%)
     //   7: Precharged (93%)
-    outFrame[4] = 0x02 | (counter_1d4 << 6);
+    outFrame[4] = 0x07 | (counter_1d4 << 6);
 
     counter_1d4++;
     if (counter_1d4 >= 4)
@@ -871,17 +867,11 @@ void Msgs10ms()
     //   60: to 55.9s
     //   E0: to end of capture (discharge starts during this)
 
-    // This value has been chosen at the end of the hardest
-    // acceleration in the wide-open-throttle pull, with full-ish
-    // torque still being requested, in
-    //   LeafLogs/leaf_on_wotind_off.txt
-    // outFrame[6] = 0x00;
-
     // 0x1d4 byte 6 seems to have an active role.
     // 0x00 when in park and brake released.
     // 0x20 when brake lightly pressed in park.
     // 0x30 when brake heavilly pressed in park.
-    outFrame[6] = WantsToCharge() ? 0xE0 : (gen2Codes ? 0x01 : 0x30);
+    // 0xE0 when charging
 
     // Value chosen from a 2016 log
     // outFrame[6] = 0x61;
@@ -890,11 +880,13 @@ void Msgs10ms()
     // 2016-24kWh-ev-on-drive-park-off.pcap #12101 / 15.63s
     // outFrame[6] = 0x01;
     // byte 6 brake signal
+    outFrame[6] = WantsToCharge() ? 0xE0 : (gen2Codes ? 0x01 : 0x30);
 
     // Extra CRC
     NissanCRC(outFrame);
 
     can->Transmit(MsgID::CmdTorque, 8, outFrame);
+
 
     // We need to send 0x1db here with voltage measured by inverter
     int TMP_battI = inverterStatus.stats.motorPower * 2000.0f /
@@ -1229,12 +1221,12 @@ void Tick()
 
     ReadCAN();
 
-    if (timer_Frames500.HasTriggered())
-        Msgs500ms();
-    if (timer_Frames100.HasTriggered())
-        Msgs100ms();
     if (timer_Frames10.HasTriggered())
         Msgs10ms();
+    if (timer_Frames100.HasTriggered())
+        Msgs100ms();
+    if (timer_Frames500.HasTriggered())
+        Msgs500ms();
 
     PrintFailures();
     PrintDebug();
