@@ -292,6 +292,14 @@ enum MsgID
 
     RcvPDMModel_AZE0_2014_2017 = 0x393,
     RcvPDMModel_ZE1_2018 = 0x1ED,
+
+    // BMS/LBC
+    CmdRequestNextBMSData = 0x79B,
+    RcvBMSData = 0x7BB,
+
+    // 12V battery
+    CmdRequest12VState = 0x797,
+    Rcv12VState = 0x79A,
 };
 
 bool IsCanIDValid(int ID)
@@ -313,6 +321,10 @@ bool IsCanIDValid(int ID)
     case 0x679:
     case 0x393:
     case 0x1ED:
+    case 0x79B:
+    case 0x7BB:
+    case 0x797:
+    case 0x79A:
         return true;
     }
 
@@ -973,6 +985,39 @@ void Msgs500msPDM()
     can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
 }
 
+bool sendDummy12VBatteryData;
+bool sendDummyHVBatteryData;
+void MsgsOBD()
+{
+    if(sendDummy12VBatteryData)
+    {
+        sendDummy12VBatteryData = false;
+        outFrame[0] = 0x04;
+        outFrame[1] = 0x62;
+        outFrame[2] = 0x11;
+        outFrame[3] = 0x03;
+        outFrame[4] = 0xA3; // 13.04V / 0.08
+        outFrame[5] = 0x00;
+        outFrame[6] = 0x00;
+        outFrame[7] = 0x00;
+        can->Transmit(MsgID::Rcv12VState, 8, outFrame);
+    }
+
+    if(sendDummyHVBatteryData)
+    {
+        sendDummyHVBatteryData = false;
+        outFrame[0] = 0x00;
+        outFrame[1] = 0x00;
+        outFrame[2] = 0x00;
+        outFrame[3] = 0x00;
+        outFrame[4] = 0x00;
+        outFrame[5] = 0x00;
+        outFrame[6] = 0x00;
+        outFrame[7] = 0x00;
+        can->Transmit(MsgID::RcvBMSData, 8, outFrame);
+    }
+}
+
 void Msgs100ms()
 {
     if (!can_status)
@@ -980,6 +1025,7 @@ void Msgs100ms()
 
     Msgs100msPDM();
     SendHeartBeat();
+    MsgsOBD();
 }
 
 void Msgs500ms()
@@ -1061,7 +1107,10 @@ void ReadCAN()
         }
         break;
 
-    case MsgID::RcvPDMWakeup: // No data required
+    // No data required
+    case MsgID::CmdRequestNextBMSData:
+    case MsgID::CmdRequest12VState:
+    case MsgID::RcvPDMWakeup: 
         break;
 
     default:
@@ -1147,6 +1196,14 @@ void ReadCAN()
 
     case MsgID::RcvPDMModel_ZE1_2018:
         inverterStatus.PDMModelType = PDMType::ZE1_2018;
+        break;
+
+    case MsgID::CmdRequest12VState:
+        sendDummy12VBatteryData = true;
+        break;
+
+    case MsgID::CmdRequestNextBMSData:
+        sendDummyHVBatteryData = true;
         break;
 
     default:
