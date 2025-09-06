@@ -334,6 +334,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
     commandPointers.push_back(CommandPointer("togglepdmcan", TogglePDMCAN));
     commandPointers.push_back(CommandPointer("testcontactor", SetContactor));
+    commandPointers.push_back(CommandPointer("sendcan", SendCAN));
 }
 
 #define INPUT_BUFFER_SIZE 64
