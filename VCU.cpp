@@ -106,6 +106,7 @@ TimedFilter<bool> driveModeFilter = TimedFilter<bool>(100);
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
 Timer timer_Frames500 = Timer(0.5f);
+Timer timer_response_50MS = Timer(0.05f);
 Timer TimerHV = Timer(HVTimerTime);
 Timer prechargeFailureTimer = Timer(3);
 Timer throttlePrintTimer = Timer(0.1f);
@@ -990,10 +991,13 @@ void Msgs500msPDM()
     can->Transmit(MsgID::CmdBatteryCapacity, 8, outFrame);
 }
 
+bool OBDDataPending;
 bool sendDummy12VBatteryData;
 bool sendDummyHVBatteryData;
 void MsgsOBD()
 {
+    OBDDataPending = false;
+    
     if(sendDummy12VBatteryData)
     {
         sendDummy12VBatteryData = false;
@@ -1030,7 +1034,6 @@ void Msgs100ms()
 
     Msgs100msPDM();
     SendHeartBeat();
-    MsgsOBD();
 }
 
 void Msgs500ms()
@@ -1204,11 +1207,11 @@ void ReadCAN()
         break;
 
     case MsgID::CmdRequest12VState:
-        sendDummy12VBatteryData = true;
+        OBDDataPending = sendDummy12VBatteryData = true;
         break;
 
     case MsgID::CmdRequestNextBMSData:
-        sendDummyHVBatteryData = true;
+        OBDDataPending = sendDummyHVBatteryData = true;
         break;
 
     default:
@@ -1289,6 +1292,8 @@ void Tick()
         Msgs100ms();
     if (timer_Frames500.HasTriggered())
         Msgs500ms();
+    if (OBDDataPending && timer_response_50MS.HasTriggered())
+        MsgsOBD();
 
     PrintFailures();
     PrintDebug();
