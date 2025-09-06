@@ -85,7 +85,6 @@ void FindCommandAndParameters(String fullString)
         {
             parameters.push_back(fullString.substring(startIndex, i));
             startIndex = i + 1;
-            break;
         }
 
     if (startIndex < fullString.length())
@@ -312,6 +311,7 @@ void SendCAN()
         frame[i] = parameters[i + 1].toInt();
     }
 
+    PrintSerialMessage("Sending custom CAN MSG ID: 0x" + IntToHex(ID) + " Bytes: " + BytesToString(frame, 8));
     VCU::SendCustomCanMessage(ID, frame);
 }
 
