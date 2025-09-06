@@ -451,7 +451,7 @@ float lastInverterVoltageTime;
 
 bool IsPDMEnabled()
 {
-    return prechargeComplete && PDM_CAN_Enabled;
+    return PDM_CAN_Enabled;
 }
 
 bool wantedToCharge;
