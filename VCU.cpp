@@ -2,6 +2,7 @@
 #include "VCU.h"
 
 #include <Arduino.h>
+#include <vector>
 
 #include "CAN.h"
 #include "Contactor.h"
@@ -277,6 +278,34 @@ void SendCustomCanMessage(unsigned int ID, unsigned char data[8])
     can->Transmit(ID, 8, data);
 }
 
+struct DummyQueryResponse
+{
+    unsigned int queryID;
+    unsigned int responseID;
+    byte responseData[8];
+    bool needsToRespond;
+
+    DummyQueryResponse(){}
+    DummyQueryResponse(unsigned int qID, unsigned int rID)
+    {
+        queryID = qID;
+        responseID = rID;
+    }
+    DummyQueryResponse(unsigned int qID, unsigned int rID, byte rData[8])
+    {
+        queryID = qID;
+        responseID = rID;
+        memcpy(&responseData, &rData, 8);
+    }
+    DummyQueryResponse(unsigned int qID, unsigned int rID, unsigned long long rData)
+    {
+        queryID = qID;
+        responseID = rID;
+        memcpy(&responseData, &rData, 8);
+    }
+};
+std::vector<DummyQueryResponse> dummyQueries;
+
 enum MsgID
 {
     // Inverter IDs
@@ -327,10 +356,6 @@ bool IsCanIDValid(int ID)
     case 0x679:
     case 0x393:
     case 0x1ED:
-    case 0x79B:
-    case 0x7BB:
-    case 0x797:
-    case 0x79A:
         return true;
     }
 
@@ -445,6 +470,21 @@ void Initialize()
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
+
+    dummyQueries.push_back(DummyQueryResponse(0x797, 0x79A, 0x04621103A3000000)); // 12V battery, [5]A3 = 13.04V / 0.08
+    dummyQueries.push_back(DummyQueryResponse(0x745, 0x765)); // BCM body control module
+    dummyQueries.push_back(DummyQueryResponse(0x740, 0x760)); // ABS
+    dummyQueries.push_back(DummyQueryResponse(0x79B, 0x7BB)); // BMS/LBC
+    dummyQueries.push_back(DummyQueryResponse(0x743, 0x763)); // M&A (Meter)
+    dummyQueries.push_back(DummyQueryResponse(0x744, 0x764)); // HVAC
+    dummyQueries.push_back(DummyQueryResponse(0x70E, 0x70F)); // Brake
+    dummyQueries.push_back(DummyQueryResponse(0x73F, 0x761)); // VSP Vehicle Sound for Pedestrians
+    dummyQueries.push_back(DummyQueryResponse(0x742, 0x762)); // EPS Electric Power Steering system
+    dummyQueries.push_back(DummyQueryResponse(0x746, 0x783)); // TCU Telematics control unit
+    dummyQueries.push_back(DummyQueryResponse(0x747, 0x767)); // Multi AV
+    dummyQueries.push_back(DummyQueryResponse(0x74D, 0x76D)); // IPDM E/R
+    dummyQueries.push_back(DummyQueryResponse(0x752, 0x772)); // Airbag
+    dummyQueries.push_back(DummyQueryResponse(0x79D, 0x7BD)); // Shift
 }
 
 float prechargeToFailureTime = 0;
@@ -992,38 +1032,17 @@ void Msgs500msPDM()
 }
 
 bool OBDDataPending;
-bool sendDummy12VBatteryData;
-bool sendDummyHVBatteryData;
 void MsgsOBD()
 {
     OBDDataPending = false;
     
-    if(sendDummy12VBatteryData)
+    for(int i = 0; i < dummyQueries.size(); i++)
     {
-        sendDummy12VBatteryData = false;
-        outFrame[0] = 0x04;
-        outFrame[1] = 0x62;
-        outFrame[2] = 0x11;
-        outFrame[3] = 0x03;
-        outFrame[4] = 0xA3; // 13.04V / 0.08
-        outFrame[5] = 0x00;
-        outFrame[6] = 0x00;
-        outFrame[7] = 0x00;
-        can->Transmit(MsgID::Rcv12VState, 8, outFrame);
-    }
+        if(!dummyQueries[i].needsToRespond)
+            continue;
 
-    if(sendDummyHVBatteryData)
-    {
-        sendDummyHVBatteryData = false;
-        outFrame[0] = 0x00;
-        outFrame[1] = 0x00;
-        outFrame[2] = 0x00;
-        outFrame[3] = 0x00;
-        outFrame[4] = 0x00;
-        outFrame[5] = 0x00;
-        outFrame[6] = 0x00;
-        outFrame[7] = 0x00;
-        can->Transmit(MsgID::RcvBMSData, 8, outFrame);
+        dummyQueries[i].needsToRespond = false;
+        can->Transmit(dummyQueries[i].responseID, 8, (uint8_t*)&dummyQueries[i].responseData);
     }
 }
 
@@ -1091,6 +1110,16 @@ void ReadCAN()
 
     if (!IsCanIDValid(recvFrame.can_id))
     {
+        for(int i = 0; i < dummyQueries.size(); i++)
+        {
+            if(dummyQueries[i].responseID == recvFrame.can_id)
+            {
+                OBDDataPending = true;
+                dummyQueries[i].needsToRespond = true;
+                return;
+            }
+        }
+
         PrintSerialMessage("Unknown CAN message ID: 0x" + IntToHex(recvFrame.can_id) +
                            " Bytes: " + BytesToString(recvFrame.data, recvFrame.can_dlc));
         return;
@@ -1116,8 +1145,6 @@ void ReadCAN()
         break;
 
     // No data required
-    case MsgID::CmdRequestNextBMSData:
-    case MsgID::CmdRequest12VState:
     case MsgID::RcvPDMWakeup: 
         break;
 
@@ -1204,14 +1231,6 @@ void ReadCAN()
 
     case MsgID::RcvPDMModel_ZE1_2018:
         inverterStatus.PDMModelType = PDMType::ZE1_2018;
-        break;
-
-    case MsgID::CmdRequest12VState:
-        OBDDataPending = sendDummy12VBatteryData = true;
-        break;
-
-    case MsgID::CmdRequestNextBMSData:
-        OBDDataPending = sendDummyHVBatteryData = true;
         break;
 
     default:
