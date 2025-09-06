@@ -68,6 +68,8 @@ void SetBatteryDischargeLimit(float kilowatts);
 void ToggleThrottlePrint();
 Throttle* GetVacuumSensor();
 
+void SendCustomCanMessage(unsigned int ID, unsigned char data[8]);
+
 bool ToggleGen2Codes();
 bool TogglePDMCAN();
 

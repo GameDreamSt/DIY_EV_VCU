@@ -271,6 +271,11 @@ bool ChargerStatusPlugInserted()
     }
 }
 
+void SendCustomCanMessage(unsigned int ID, unsigned char data[8])
+{
+    can->Transmit(ID, 8, data);
+}
+
 enum MsgID
 {
     // Inverter IDs

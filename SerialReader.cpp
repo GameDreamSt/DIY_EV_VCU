@@ -295,6 +295,26 @@ void SetContactor()
     VCU::SetContactorForTesting((int)test);
 }
 
+void SendCAN()
+{
+    if (parameters.size() == 0)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    unsigned int ID = parameters[0].toInt();
+
+    int size = Min(parameters.size() - 1, 8);
+    unsigned char frame[8];
+    for(int i = 0; i < size; i++)
+    {
+        frame[i] = parameters[i + 1].toInt();
+    }
+
+    VCU::SendCustomCanMessage(ID, frame);
+}
+
 void InitializeSerialReader()
 {
     commandPointers.push_back(CommandPointer("help", OutputHelp));
