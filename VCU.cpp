@@ -474,7 +474,7 @@ bool WantsToCharge()
 void ClearHVData()
 {
     lastInverterVoltageTime = lastInverterVoltage = prechargeToFailureTime = 0;
-    prechargeFailure = prechargeComplete = false;
+    vacuumPumpFailure = prechargeFailure = prechargeComplete = false;
     inverterStatus.inverterVoltage = 0;
     inverterStatus.error_state = false;
 }
@@ -1218,8 +1218,8 @@ void PrintFailures()
         if (prechargeFailure)
             PrintSerialMessage("Precharge failure! Inverter didn't reach battery voltage in 5 seconds!");
 
-        if (vacuumPumpFailure)
-            PrintSerialMessage("Vacuum pump failure! Didn't reach target vacuum in some time...");
+        //if (vacuumPumpFailure)
+            //PrintSerialMessage("Vacuum pump failure! Didn't reach target vacuum in some time...");
     }
 }
 
