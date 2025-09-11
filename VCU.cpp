@@ -327,14 +327,6 @@ enum MsgID
 
     RcvPDMModel_AZE0_2014_2017 = 0x393,
     RcvPDMModel_ZE1_2018 = 0x1ED,
-
-    // BMS/LBC
-    CmdRequestNextBMSData = 0x79B,
-    RcvBMSData = 0x7BB,
-
-    // 12V battery
-    CmdRequest12VState = 0x797,
-    Rcv12VState = 0x79A,
 };
 
 bool IsCanIDValid(int ID)
@@ -1112,7 +1104,7 @@ void ReadCAN()
     {
         for(int i = 0; i < dummyQueries.size(); i++)
         {
-            if(dummyQueries[i].responseID == recvFrame.can_id)
+            if(dummyQueries[i].queryID == recvFrame.can_id)
             {
                 OBDDataPending = true;
                 dummyQueries[i].needsToRespond = true;
