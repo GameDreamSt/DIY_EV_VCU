@@ -109,27 +109,12 @@ void OutputStatus()
     shouldOutputStatus = !shouldOutputStatus;
 }
 
-String PDMModelTypeToString(PDMType type)
-{
-    switch (type)
-    {
-    default:
-    case PDMType::ZE0_2011_2013:
-        return "ZE0 2011-2013 (or not connected...)";
-    case PDMType::AZE0_2014_2017:
-        return "AZE0 2014-2017";
-    case PDMType::ZE1_2018:
-        return "ZE1 2018+";
-    }
-}
-
 void PrintInverterStatus()
 {
     InverterStatus status = VCU::GetInverterStatus();
     Stats stats = status.stats;
 
-    String str = "EV status:\nPDM model mode: " + PDMModelTypeToString(status.PDMModelType) +
-                 "\nInverter voltage: " + ToString(status.inverterVoltage) + " V " + 
+    String str = "Inverter voltage: " + ToString(status.inverterVoltage) + " V " + 
                  "\n" + stats.GetString() +
                  "\nIs in error state: " + BoolToString(status.error_state);
 
@@ -149,12 +134,9 @@ void ClearMaxStats()
     VCU::ClearMaxRecordedStats();
 }
 
-void PrintPDMStatus()
+void PrintOBCStatus()
 {
-    PDMStatus status = VCU::GetPDMStatus();
-    String str = "PDM status:\n" +
-                 status.GetString();
-    PrintSerialMessage(str);
+    PrintSerialMessage(VCU::GetOBCStatus());
 }
 
 void SetTorque()
@@ -224,17 +206,6 @@ void PrintCan()
     CAN::printReceive = !CAN::printReceive;
 }
 
-void DischargeKw()
-{
-    if (parameters.size() == 0)
-    {
-        PrintSerialMessage("Not enough parameters!");
-        return;
-    }
-
-    VCU::SetBatteryDischargeLimit(parameters[0].toFloat());
-}
-
 void GetThrottle()
 {
     VCU::ToggleThrottlePrint();
@@ -257,14 +228,6 @@ void ToggleGen2()
         PrintSerialMessage("Gen 2 CAN codes selected");
     else
         PrintSerialMessage("Gen 1 CAN codes selected");
-}
-
-void TogglePDMCAN()
-{
-    if(VCU::TogglePDMCAN())
-        PrintSerialMessage("PDM CAN enabled");
-    else
-        PrintSerialMessage("PDM CAN disabled");
 }
 
 void SetContactor()
@@ -319,18 +282,16 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("status", OutputStatus));
     commandPointers.push_back(CommandPointer("maxstats", PrintInverterMaxStats));
     commandPointers.push_back(CommandPointer("clearmaxstats", ClearMaxStats));
-    commandPointers.push_back(CommandPointer("pdmstatus", PrintPDMStatus));
+    commandPointers.push_back(CommandPointer("obcstatus", PrintOBCStatus));
     commandPointers.push_back(CommandPointer("printcan", PrintCan));
     commandPointers.push_back(CommandPointer("torque", SetTorque));
     commandPointers.push_back(CommandPointer("maxtorque", SetMaxTorque));
     commandPointers.push_back(CommandPointer("regentorque", SetRegenTorque));
     commandPointers.push_back(CommandPointer("regenrpm", SetMinMaxRegenRPMRange));
-    commandPointers.push_back(CommandPointer("dischargekw", DischargeKw));
     commandPointers.push_back(CommandPointer("throttleout", GetThrottle));
     commandPointers.push_back(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
     commandPointers.push_back(CommandPointer("vacuum", PrintVacuumSensorData));
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
-    commandPointers.push_back(CommandPointer("togglepdmcan", TogglePDMCAN));
     commandPointers.push_back(CommandPointer("testcontactor", SetContactor));
     commandPointers.push_back(CommandPointer("sendcan", SendCAN));
 }

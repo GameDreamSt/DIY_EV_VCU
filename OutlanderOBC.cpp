@@ -98,7 +98,7 @@ void ClearCAN()
     memcpy(&outFrame, &zero, 8);
 }
 
-void Msgs10Ms(CAN *can)
+void OBCMsgs10Ms(CAN *can)
 {
     if (chargeStatus == CmdChargeStatus::Off)
         return;
@@ -107,7 +107,7 @@ void Msgs10Ms(CAN *can)
     can->Transmit((int)MsgID::CmdHeartBeat, 8, outFrame);
 }
 
-void Msgs100Ms(CAN *can)
+void OBCMsgs100Ms(CAN *can)
 {
     if (chargeStatus != CmdChargeStatus::Charge)
     {
@@ -136,7 +136,7 @@ bool PrintCANDataLengthFailure(int ID, int expected, int got)
     return true;
 }
 
-bool HandleCAN(unsigned int canID, int inFrameSize, unsigned char inFrame[8])
+bool OBCHandleCAN(unsigned int canID, int inFrameSize, unsigned char inFrame[8])
 {
     if (!IsCanIDValid(canID))
     {
@@ -144,6 +144,8 @@ bool HandleCAN(unsigned int canID, int inFrameSize, unsigned char inFrame[8])
     }
 
     MsgID messageType = (MsgID)canID;
+
+    bool previousCPState = obc_Data.controlPilotDetected;
 
     // Handle CAN message
     switch (messageType)
@@ -182,6 +184,14 @@ bool HandleCAN(unsigned int canID, int inFrameSize, unsigned char inFrame[8])
         obc_Data.error = (inFrame[5] >> 4) & 1;
         obc_Data.DCDC_Status_Requested = (inFrame[5] >> 6) & 1;
         obc_Data.controlPilotDetected = (inFrame[5] >> 7) & 1;
+
+        if (previousCPState != obc_Data.controlPilotDetected)
+        {
+            if (obc_Data.controlPilotDetected)
+                PrintSerialMessage("Charging plug inserted");
+            else
+                PrintSerialMessage("Charging plug disconnected");
+        }
         break;
 
     case MsgID::RcvOBC_Status2:

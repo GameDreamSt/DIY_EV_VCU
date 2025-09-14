@@ -4,26 +4,6 @@
 
 class Throttle;
 
-enum PDMType
-{
-    ZE0_2011_2013,  // Default
-    AZE0_2014_2017, // If CAN message 0x393 is identified on the EV-CAN
-    ZE1_2018,       // If CAN message 0x1ED is identified on the EV-CAN
-};
-
-struct PDMStatus
-{
-    unsigned char sleepEnabled;
-    float plugVoltage;
-    float activePowerKw;
-    float availablePowerKw;
-    bool plugInserted;
-    unsigned char chargerStatus;
-    unsigned char DCtoDCStatus;
-
-    String GetString();
-};
-
 struct Stats
 {
     short rpm = 0;
@@ -38,8 +18,6 @@ struct Stats
 
 struct InverterStatus
 {
-    PDMType PDMModelType;
-
     unsigned short inverterVoltage = 0;
     float batteryVoltage = 0;
 
@@ -56,7 +34,7 @@ void Tick();
 InverterStatus GetInverterStatus();
 Stats GetMaxRecordedStats();
 void ClearMaxRecordedStats();
-PDMStatus GetPDMStatus();
+String GetOBCStatus();
 
 void SetFinalTorqueRequest(short value);
 bool SetMaxTorqueRequest(short value);

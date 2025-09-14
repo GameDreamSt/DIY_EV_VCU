@@ -51,6 +51,6 @@ struct OBC_Data
 void SetChargeStatus(CmdChargeStatus status, float OBC_HVTargetVoltage, unsigned char OBC_ChargingCurrent);
 DCDC_Data* GetDCDCData();
 OBC_Data* GetOBCData();
-void Msgs10Ms(CAN *can);
-void Msgs100Ms(CAN *can);
-bool HandleCAN(unsigned int canID, int inFrameSize, unsigned char inFrame[8]);
+void OBCMsgs10Ms(CAN *can);
+void OBCMsgs100Ms(CAN *can);
+bool OBCHandleCAN(unsigned int canID, int inFrameSize, unsigned char inFrame[8]);
