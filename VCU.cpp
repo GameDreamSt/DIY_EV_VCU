@@ -1,9 +1,6 @@
 
 #include "VCU.h"
 
-#include <Arduino.h>
-#include <vector>
-
 #include "CAN.h"
 #include "Contactor.h"
 #include "Filter.h"

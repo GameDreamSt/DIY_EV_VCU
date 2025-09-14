@@ -1,7 +1,7 @@
 
 #include <vector>
+#include <Arduino.h>
 
-class String;
 class Throttle;
 
 enum PDMType
