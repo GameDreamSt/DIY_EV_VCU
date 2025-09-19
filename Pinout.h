@@ -15,6 +15,8 @@
 #define PIN_POS_CONTACTOR 5     // Positive contactor control
 #define PIN_NEG_CONTACTOR 6     // Negative contactor control
 #define PIN_VACUUM_PUMP 7       // Vacuum pump activation
+#define PIN_WATER_PUMP 8        // Water pump activation
+#define PIN_DCDC_ENABLE 9       // DC/DC enable signal
 
 #define MKRCAN_MCP2515_CS_PIN 10 // Slave Select pin (SS) /	Chip Select Pin (CS)
 #define MKRCAN_MCP2515_INT_PIN 11 // Interrupt pin for CAN messages (not used)

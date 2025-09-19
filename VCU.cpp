@@ -305,6 +305,14 @@ void SetContactor(int pinID, bool state)
         digitalWrite(PIN_VACUUM_PUMP, state || contactorTest == ContactorTest::Vacuum ? HIGH : LOW);
         break;
 
+    case PIN_WATER_PUMP:
+        digitalWrite(PIN_WATER_PUMP, state || contactorTest == ContactorTest::Water ? HIGH : LOW);
+        break;
+
+    case PIN_DCDC_ENABLE:
+        digitalWrite(PIN_DCDC_ENABLE, state || contactorTest == ContactorTest::DCDC ? HIGH : LOW);
+        break;
+
     default:
         break;
     }
@@ -344,6 +352,8 @@ void Initialize()
     pinMode(PIN_POS_CONTACTOR, OUTPUT);
     pinMode(PIN_NEG_CONTACTOR, OUTPUT);
     pinMode(PIN_VACUUM_PUMP, OUTPUT);
+    pinMode(PIN_WATER_PUMP, OUTPUT);
+    pinMode(PIN_DCDC_ENABLE, OUTPUT);
 
     SetContactor(PIN_PRECHARGE, false);
     SetContactor(PIN_POS_CONTACTOR, false);
@@ -513,6 +523,44 @@ void HVChargeControl()
         chargeCurrent *= 0.5;*/
 
     SetChargeStatus(chargeStatus, MAX_CHARGE_VOLTAGE, chargeCurrent);
+}
+
+Timer lowChargeTimer = Timer(30);
+Timer lowChargeCooldownTimer = Timer(5);
+bool lowCharging = false;
+bool ShouldChargeDCDC()
+{
+    bool canCharge = prechargeComplete && inverterStatus.inverterVoltage > LOWEST_VOLTAGE;
+
+    if(!canCharge)
+        return false;
+
+    if(ignitionOn)
+        return true;
+
+    if(!ChargerStatusPlugInserted())
+        return false;
+
+    if(lowCharging)
+    {
+        if(lowChargeTimer.HasTriggered())
+        {
+            PrintSerialMessage("DC/DC stopped");
+            lowCharging = false;
+        }
+    }
+    else if(lowChargeCooldownTimer.HasTriggered() && GetDCDCData()->supplyVoltage < 12.5f)
+    {
+        PrintSerialMessage("DC/DC started");
+        lowCharging = true;
+    }
+
+    return lowCharging;
+}
+
+void LowChargeControl()
+{
+    digitalWrite(PIN_DCDC_ENABLE, ShouldChargeDCDC());
 }
 
 void SendHeartBeat()

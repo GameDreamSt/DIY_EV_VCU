@@ -250,6 +250,10 @@ void SetContactor()
         test = ContactorTest::Precharge;
     else if(state == "v" || state == "vacuum")
         test = ContactorTest::Vacuum;
+    else if(state == "w" || state == "water")
+        test = ContactorTest::Water;
+    else if(state == "d" || state == "dc" || state == "dcdc")
+        test = ContactorTest::DCDC;
 
 
     VCU::SetContactorForTesting((int)test);
