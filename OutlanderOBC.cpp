@@ -4,7 +4,6 @@
 #include "CAN.h"
 #include "SerialPrint.h"
 
-bool wasCharging;
 unsigned char outFrame[8];
 unsigned short HVTargetVoltage;
 unsigned char chargingCurrent;
@@ -111,16 +110,12 @@ void OBCMsgs100Ms(CAN *can)
 {
     if (chargeStatus != CmdChargeStatus::Charge)
     {
-        if (wasCharging)
-        {
-            wasCharging = false;
-            ClearCAN();
-            can->Transmit((int)MsgID::CmdOBC_Control, 8, outFrame);
-        }
+        ClearCAN();
+        outFrame[6] = 0xB6;
+        can->Transmit((int)MsgID::CmdOBC_Control, 8, outFrame);
         return;
     }
 
-    wasCharging = true;
     ClearCAN();
 
     outFrame[0] = HVTargetVoltage; // (Big Endian bytes e.g. 0x0E 0x74 = 3700 = 370v => 0x74 0x0E to CAN)

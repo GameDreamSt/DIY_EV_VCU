@@ -498,19 +498,19 @@ void HighVoltageControl()
     SetContactor(PIN_PRECHARGE, false);
 }
 
-void ChargeControl()
+void HVChargeControl()
 {
-    bool canCharge = prechargeComplete && inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE;
+    bool canCharge = prechargeComplete; //&& inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE;
 
-    CmdChargeStatus chargeStatus = canCharge ? CmdChargeStatus::Charge : (ChargerStatusPlugInserted() ? CmdChargeStatus::Connect : CmdChargeStatus::Off);
+    CmdChargeStatus chargeStatus = ChargerStatusPlugInserted() ? (canCharge ? CmdChargeStatus::Charge : CmdChargeStatus::Connect) : CmdChargeStatus::Off;
 
     unsigned char chargeCurrent = MAX_CHARGE_CURRENT;
 
-    short maxMinVoltDifference = MAX_CHARGE_VOLTAGE - LOWEST_VOLTAGE;
+    /*short maxMinVoltDifference = MAX_CHARGE_VOLTAGE - LOWEST_VOLTAGE;
     short slowChargeThreshold = LOWEST_VOLTAGE + maxMinVoltDifference * 0.8;
 
     if(inverterStatus.inverterVoltage > slowChargeThreshold)
-        chargeCurrent *= 0.5;
+        chargeCurrent *= 0.5;*/
 
     SetChargeStatus(chargeStatus, MAX_CHARGE_VOLTAGE, chargeCurrent);
 }
@@ -956,7 +956,7 @@ void Tick()
     if (TimerHV.HasTriggered())
     {
         HighVoltageControl();
-        ChargeControl();
+        HVChargeControl();
     }
 
     ReadCAN();
