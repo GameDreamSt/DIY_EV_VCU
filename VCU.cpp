@@ -912,7 +912,7 @@ void PrintDebug()
 void ControlVacuum()
 {
     float rawValue = vacuumSensor.GetRawValue();
-    if(rawValue < 0.01f || vacuumPumpFailure || !ignitionOn) // Disconnected or failed
+    if(rawValue < 0.01f || vacuumPumpFailure || !ignitionOn || ChargerStatusPlugInserted()) // Disconnected or failed or charging mode
     {
         SetContactor(PIN_VACUUM_PUMP, false);
         vacuumTimeOn = 0;
