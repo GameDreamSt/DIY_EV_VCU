@@ -269,7 +269,7 @@ void SendCAN()
 
     unsigned int ID = parameters[0].toInt();
 
-    int size = min(parameters.size() - 1, 8);
+    int size = Min(parameters.size() - 1, 8);
     unsigned char frame[8];
     for(int i = 0; i < size; i++)
     {

@@ -60,10 +60,13 @@ String OBC_Data::GetString()
 
 void SetChargeStatus(CmdChargeStatus status, float OBC_HVTargetVoltage, unsigned char OBC_ChargingCurrent)
 {
+    if(chargeStatus != status)
+        PrintSerialMessage("OBC status changed " + ToString(chargeStatus) + " => " + ToString(status) + " " + FloatToString(OBC_HVTargetVoltage, 0) + "V, " + ToString(OBC_ChargingCurrent) + "A");
+
     chargeStatus = status;
-    OBC_HVTargetVoltage = max(min(OBC_HVTargetVoltage, 410), 0);
+    OBC_HVTargetVoltage = Max(Min(OBC_HVTargetVoltage, 410), 0);
     HVTargetVoltage = OBC_HVTargetVoltage * 10;
-    chargingCurrent = min(OBC_ChargingCurrent, 12); // 12A is the maximum charging current
+    chargingCurrent = Min(OBC_ChargingCurrent, 12) * 10; // 12A is the maximum charging current
 }
 
 enum MsgID
@@ -85,6 +88,13 @@ bool IsCanIDValid(unsigned int ID)
     case 0x277:
     case 0x389:
     case 0x38A:
+
+    case 0x377: // 
+    case 0x563: // 
+    case 0x569: // 
+    case 0x568: // 0 2 80 A 0 0 A8 AA
+    case 0x663: // 1 33 30 30 0 0 0 0
+    case 0x664: // 2 83 6 32 F3 0 0 0
         return true;
     }
 
@@ -103,6 +113,7 @@ void OBCMsgs10Ms(CAN *can)
         return;
 
     ClearCAN();
+    outFrame[2] = 0xb6;
     can->Transmit((int)MsgID::CmdHeartBeat, 8, outFrame);
 }
 
