@@ -359,6 +359,7 @@ void Initialize()
     SetContactor(PIN_POS_CONTACTOR, false);
     SetContactor(PIN_NEG_CONTACTOR, false);
     SetContactor(PIN_VACUUM_PUMP, false);
+    SetContactor(PIN_WATER_PUMP, false);
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
@@ -561,6 +562,30 @@ bool ShouldChargeDCDC()
 void LowChargeControl()
 {
     digitalWrite(PIN_DCDC_ENABLE, ShouldChargeDCDC());
+}
+
+bool ShouldTurnOnPump() // Not sure if it's ok to wait for temperatures to rise or we need to circulate the coolant all the time
+{
+    if(driveMode)
+        return true;
+
+    if(inverterStatus.stats.inverter_temperature > 30)
+        return true;
+    if(inverterStatus.stats.motor_temperature > 30)
+        return true;
+    if(GetOBCData()->MaxTemperature() > 30)
+        return true;
+    if(GetDCDCData()->MaxTemperature() > 30)
+        return true;
+
+    return false;
+}
+
+Timer waterPumpTimer = Timer(5);
+void TemperatureControl()
+{
+    if(waterPumpTimer.HasTriggered())
+        SetContactor(PIN_WATER_PUMP, ShouldTurnOnPump());
 }
 
 void SendHeartBeat()
@@ -1005,6 +1030,7 @@ void Tick()
     {
         HighVoltageControl();
         HVChargeControl();
+        TemperatureControl();
     }
 
     ReadCAN();
