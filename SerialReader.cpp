@@ -4,6 +4,7 @@
 #include "Contactor.h"
 #include "Throttle.h"
 #include "Timer.h"
+#include "Math.h"
 #include "VCU.h"
 #include "CAN.h"
 

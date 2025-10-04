@@ -3,6 +3,7 @@
 
 #include "CAN.h"
 #include "SerialPrint.h"
+#include "Math.h"
 
 unsigned char outFrame[8];
 unsigned short HVTargetVoltage;
