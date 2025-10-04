@@ -25,3 +25,4 @@
 #define APIN_VACUUM A0  // Vacuum sensor
 #define APIN_Throttle1 A1 // Analog throttle channel 1
 #define APIN_Throttle2 A2 // Analog throttle channel 2
+#define APIN_CHARGER_PP A3 // Proximity Pilot

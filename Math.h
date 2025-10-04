@@ -14,3 +14,7 @@
 #ifndef Saturate
 #define Saturate(a) Max(0, Min(1, x))
 #endif
+
+#ifndef FloatAbout
+#define FloatAbout(value, target, deviation) value > target - deviation && value < target + deviation
+#endif

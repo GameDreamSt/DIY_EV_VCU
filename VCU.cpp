@@ -10,6 +10,7 @@
 #include "Time.h"
 #include "mcp2515.h"
 #include "OutlanderOBC.h"
+#include "Math.h"
 
 String Stats::GetString()
 {
@@ -46,6 +47,7 @@ Timer throttlePrintTimer = Timer(0.1f);
 
 ThrottleManager throttleManager;
 Throttle vacuumSensor = Throttle(APIN_VACUUM);
+Throttle proximityPilotSensor = Throttle(APIN_CHARGER_PP);
 float vacuumTimeOn;
 bool vacuumOn;
 bool vacuumPumpFailure;
@@ -169,9 +171,43 @@ String GetOBCStatus()
     return GetDCDCData()->GetString() + "\n" + GetOBCData()->GetString();
 }
 
+enum PPStatus
+{
+    NotConnected,
+    NoVCUResistor,
+    NoInletResistor,
+    PlugNotInserted,
+    PlugInserted,
+    PlugMoving,
+    Unknown,
+};
+
+float lastRawPPValue = 0;
+Timer PPTimer = Timer(0.1f);
+PPStatus GetProximityPilotStatus() // Assuming VCCVoltage
+{
+    if(PPTimer.HasTriggered())
+    {
+        lastRawPPValue = proximityPilotSensor.GetRawValue() / VCCVoltage;
+    }
+    
+    if(FloatAbout(lastRawPPValue, 0, 0.5f))
+        return PPStatus::NotConnected;
+    if(FloatAbout(lastRawPPValue, 1, 0.05f))
+        return PPStatus::NoInletResistor;
+    if(FloatAbout(lastRawPPValue, 0.891f, 0.03f)) // 2700 / (2700 + 330)
+        return PPStatus::PlugNotInserted;
+    if(FloatAbout(lastRawPPValue, 0.905f, 0.03f)) // (2700 + 150 + 330) / (2700 + 150 + 330 + 330)
+        return PPStatus::PlugInserted;
+    if(FloatAbout(lastRawPPValue, 0.896f, 0.03f)) // (2700 + 150) / (2700 + 150 + 330)
+        return PPStatus::PlugMoving;
+
+    return PPStatus::Unknown;
+}
+
 bool ChargerStatusPlugInserted()
 {
-    return GetOBCData()->controlPilotDetected;
+    return GetOBCData()->controlPilotDetected || GetProximityPilotStatus() == PPStatus::PlugInserted;
 }
 
 void SendCustomCanMessage(unsigned int ID, unsigned char data[8])
