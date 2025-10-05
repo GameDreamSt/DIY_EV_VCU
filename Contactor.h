@@ -10,4 +10,5 @@ enum ContactorTest
     Vacuum = PIN_VACUUM_PUMP,
     Water = PIN_WATER_PUMP,
     DCDC = PIN_DCDC_ENABLE,
+    Charger = PIN_CHARGER_IGN,
 };

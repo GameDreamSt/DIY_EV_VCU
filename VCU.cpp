@@ -173,13 +173,13 @@ String GetOBCStatus()
 
 enum PPStatus
 {
+    Unknown,
     NotConnected,
     NoVCUResistor,
     NoInletResistor,
     PlugNotInserted,
     PlugInserted,
     PlugMoving,
-    Unknown,
 };
 
 float lastRawPPValue = 0;
@@ -321,33 +321,19 @@ void CAN_ChecksumNibble(byte *data, byte add, byte mask)
 
 ContactorTest contactorTest;
 
+#define CASE_CONTACTOR(pin, test) case pin: digitalWrite(pin, state || contactorTest == test ? HIGH : LOW); break;
+
 void SetContactor(int pinID, bool state)
 {
     switch (pinID)
     {
-    case PIN_PRECHARGE:
-        digitalWrite(PIN_PRECHARGE, state || contactorTest == ContactorTest::Precharge ? HIGH : LOW);
-        break;
-
-    case PIN_POS_CONTACTOR:
-        digitalWrite(PIN_POS_CONTACTOR, state || contactorTest == ContactorTest::Positive ? HIGH : LOW);
-        break;
-
-    case PIN_NEG_CONTACTOR:
-        digitalWrite(PIN_NEG_CONTACTOR, state || contactorTest == ContactorTest::Negative ? HIGH : LOW);
-        break;
-
-    case PIN_VACUUM_PUMP:
-        digitalWrite(PIN_VACUUM_PUMP, state || contactorTest == ContactorTest::Vacuum ? HIGH : LOW);
-        break;
-
-    case PIN_WATER_PUMP:
-        digitalWrite(PIN_WATER_PUMP, state || contactorTest == ContactorTest::Water ? HIGH : LOW);
-        break;
-
-    case PIN_DCDC_ENABLE:
-        digitalWrite(PIN_DCDC_ENABLE, state || contactorTest == ContactorTest::DCDC ? HIGH : LOW);
-        break;
+        CASE_CONTACTOR(PIN_PRECHARGE, ContactorTest::Precharge);
+        CASE_CONTACTOR(PIN_POS_CONTACTOR, ContactorTest::Positive);
+        CASE_CONTACTOR(PIN_NEG_CONTACTOR, ContactorTest::Negative);
+        CASE_CONTACTOR(PIN_VACUUM_PUMP, ContactorTest::Vacuum);
+        CASE_CONTACTOR(PIN_WATER_PUMP, ContactorTest::Water);
+        CASE_CONTACTOR(PIN_DCDC_ENABLE, ContactorTest::DCDC);
+        CASE_CONTACTOR(PIN_CHARGER_IGN, ContactorTest::Charger);
 
     default:
         break;
@@ -385,17 +371,20 @@ void Initialize()
     pinMode(PIN_DRIVE_MODE, INPUT_PULLUP);
 
     pinMode(PIN_PRECHARGE, OUTPUT);
-    pinMode(PIN_POS_CONTACTOR, OUTPUT);
     pinMode(PIN_NEG_CONTACTOR, OUTPUT);
+    pinMode(PIN_POS_CONTACTOR, OUTPUT);
     pinMode(PIN_VACUUM_PUMP, OUTPUT);
     pinMode(PIN_WATER_PUMP, OUTPUT);
     pinMode(PIN_DCDC_ENABLE, OUTPUT);
+    pinMode(PIN_CHARGER_IGN, OUTPUT);
 
     SetContactor(PIN_PRECHARGE, false);
-    SetContactor(PIN_POS_CONTACTOR, false);
     SetContactor(PIN_NEG_CONTACTOR, false);
+    SetContactor(PIN_POS_CONTACTOR, false);
     SetContactor(PIN_VACUUM_PUMP, false);
     SetContactor(PIN_WATER_PUMP, false);
+    SetContactor(PIN_DCDC_ENABLE, false);
+    SetContactor(PIN_CHARGER_IGN, false);
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
@@ -545,8 +534,29 @@ void HighVoltageControl()
     SetContactor(PIN_PRECHARGE, false);
 }
 
+bool ChargerControl()
+{
+    bool shouldChargerBeOn = driveMode || GetProximityPilotStatus() >= PPStatus::PlugInserted;
+
+    if(shouldChargerBeOn)
+    {
+        SetContactor(PIN_CHARGER_IGN, true);
+        return shouldChargerBeOn;
+    }
+
+    if(GetOBCData()->HV_Current < 1) // Can't allow to turn off if we're still charging
+        SetContactor(PIN_CHARGER_IGN, false);
+    return shouldChargerBeOn;
+}
+
 void HVChargeControl()
 {
+    if(!ChargerControl())
+    {
+        SetChargeStatus(CmdChargeStatus::Off, MAX_CHARGE_VOLTAGE, 0);
+        return;
+    }
+
     bool canCharge = prechargeComplete; //&& inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE;
 
     CmdChargeStatus chargeStatus = ChargerStatusPlugInserted() ? (canCharge ? CmdChargeStatus::Charge : CmdChargeStatus::Connect) : CmdChargeStatus::Off;
