@@ -1,21 +1,24 @@
 
 #include "SerialPrint.h"
 #include "Timer.h"
+#include <math.h>
 #include <Arduino.h>
 
 #define MAX_MESSAGES 8
 
-String messages[MAX_MESSAGES]; // TODO: calculate the hash for pending messages and do not queue the same ones
+using namespace std;
+
+string pendingMsgs[MAX_MESSAGES]; // TODO: calculate the hash for pending pendingMsgs and do not queue the same ones
 Timer maxMsgCountTimer = Timer(1);
 bool triggerMaxMsgCount;
 
-void PrintSerialMessage(String outputMsg)
+void PrintSerialMessage(string outputMsg)
 {
     for (int i = 0; i < MAX_MESSAGES; i++)
     {
-        if (messages[i].length() == 0)
+        if (pendingMsgs[i].length() == 0)
         {
-            messages[i] = outputMsg + "\n";
+            pendingMsgs[i] = outputMsg + "\n";
             return;
         }
     }
@@ -23,44 +26,44 @@ void PrintSerialMessage(String outputMsg)
     triggerMaxMsgCount = true;
 }
 
-void PrintSerialMessageHEX(String message, int hexData)
+void PrintSerialMessageHEX(string message, int hexData)
 {
     PrintSerialMessage(message + IntToHex(hexData));
 }
 
-void PrintSerialMessage(String message, int intData)
+void PrintSerialMessage(string message, int intData)
 {
-    PrintSerialMessage(message + String(intData));
+    PrintSerialMessage(message + to_string(intData));
 }
 
-String FloatToString(float var, int precision)
+string FloatToString(float var, int precision)
 {
     float multiplier = pow(10, precision);
-    String wholeNum = String((long)var);
+    string wholeNum = to_string((long)var);
 
     var = var - (float)((long)var);
     var *= multiplier;
-    String fraction = String((long)var);
+    string fraction = to_string((long)var);
     return wholeNum + "." + fraction;
 }
 
-String ToString(int var)
+string ToString(int var)
 {
-    return String(var);
+    return to_string(var);
 }
 
-String BoolToString(bool var)
+string BoolToString(bool var)
 {
     return var ? "True" : "False";
 }
 
-String IntToHex(int n)
+string IntToHex(int n)
 {
     if (n == 0)
         return "0";
 
     // ans string to store hexadecimal number
-    String temp = "";
+    string temp = "";
 
     while (n != 0)
     {
@@ -83,19 +86,19 @@ String IntToHex(int n)
         n = n / 16;
     }
 
-    String ans = "";
+    string ans = "";
     for (int i = temp.length() - 1; i >= 0; i--)
         ans += temp[i];
 
     return ans;
 }
 
-String BytesToString(std::vector<unsigned char> data)
+string BytesToString(std::vector<unsigned char> data)
 {
     if (data.size() == 0)
         return "NO_DATA";
 
-    String str = "";
+    string str = "";
 
     for (int i = 0; i < data.size() - 1; i++)
         str += IntToHex(data[i]) + " ";
@@ -104,7 +107,7 @@ String BytesToString(std::vector<unsigned char> data)
     return str;
 }
 
-String BytesToString(unsigned char *data, int length)
+string BytesToString(unsigned char *data, int length)
 {
     if (length <= 0)
         return "";
@@ -126,13 +129,13 @@ void TickSerialWriter()
     }
 
     int bytesAvailable = Serial.availableForWrite();
-    if (bytesAvailable == 0)
+    if (bytesAvailable <= 0)
         return;
 
     if (currentMessageIndex == -1)
     {
         for (int i = 0; i < MAX_MESSAGES; i++)
-            if (messages[i].length() != 0)
+            if (pendingMsgs[i].length() != 0)
             {
                 currentMessageIndex = i;
                 bytesWritten = 0;
@@ -143,9 +146,9 @@ void TickSerialWriter()
     if (currentMessageIndex == -1)
         return;
 
-    int stringLength = messages[currentMessageIndex].length();
+    int stringLength = pendingMsgs[currentMessageIndex].length();
     int bytesToWrite = stringLength - bytesWritten;
-    char *ptr = messages[currentMessageIndex].begin() + bytesWritten;
+    char *ptr = &pendingMsgs[currentMessageIndex][bytesWritten];
     if (bytesToWrite > bytesAvailable)
         bytesToWrite = bytesAvailable;
 
@@ -153,7 +156,7 @@ void TickSerialWriter()
 
     if (bytesWritten >= stringLength)
     {
-        messages[currentMessageIndex] = "";
+        pendingMsgs[currentMessageIndex] = "";
         currentMessageIndex = -1;
     }
 }

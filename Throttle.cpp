@@ -2,15 +2,19 @@
 #include "Pinout.h"
 #include "SerialPrint.h"
 #include "Throttle.h"
+#include "Timer.h"
+#include <math.h>
 #include <Arduino.h>
 
-#define READ_AVG 50
+#define READ_AVG 1
 #define DEADZONE_LOW 0.05
 #define DEADZONE_HIGH 0.95
 
 int floatSize = sizeof(float);
 
 bool Throttle::printDetailedLog = false;
+
+Timer logTimer = Timer(0.1f);
 
 Throttle::Throttle(int analogToDigitalPin)
 {
@@ -34,15 +38,15 @@ float Throttle::GetAverageAnalog()
 
 void Throttle::PrintDebugValues()
 {
-    PrintSerialMessage("T" + String(analogPin) + ": " + String(currentThrottle) + " " + String(lowestValue) + " " +
-                           String(highestValue) + " " + String(GetNormalizedThrottle()));
+    PrintSerialMessage("T" + ToString(analogPin) + ": " + ToString(currentThrottle) + " " + ToString(lowestValue) + " " +
+                           ToString(highestValue) + " " + ToString(GetNormalizedThrottle()));
 }
 
 void Throttle::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
-    if (printDetailedLog)
+    if (printDetailedLog && logTimer.HasTriggered())
         PrintDebugValues();
 
     if (currentThrottle < 0.05f) // If below 5% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
@@ -171,8 +175,8 @@ float ThrottleManager::GetNormalizedThrottle()
             if (value > 0.07f) // 7% derived from testing
             {
                 value *= 100;
-                PrintSerialMessage("Throttle deviation between T" + String(i) + " and T" + String(j) + " detected! " +
-                                   String((int)value) + "%");
+                PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) + " detected! " +
+                                   ToString((int)value) + "%");
                 delete values;
                 return 0;
             }

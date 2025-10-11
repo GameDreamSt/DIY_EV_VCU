@@ -3,7 +3,11 @@
 
 #include "CAN.h"
 #include "SerialPrint.h"
-#include "Math.h"
+#include "MathUtils.h"
+
+#include <cstring>
+
+using namespace std;
 
 unsigned char outFrame[8];
 unsigned short HVTargetVoltage;
@@ -25,7 +29,7 @@ short DCDC_Data::MaxTemperature()
     return temp;
 }
 
-String DCDC_Data::GetString()
+string DCDC_Data::GetString()
 {
     return "Battery voltage: " + FloatToString(supplyVoltage, 2) + " V" +
     "\nBattery charge current: " + FloatToString(supplyCurrent, 1) + " A" + 
@@ -44,7 +48,7 @@ short OBC_Data::MaxTemperature()
     return temp;
 }
 
-String OBC_Data::GetString()
+string OBC_Data::GetString()
 {
     return "Traction battery voltage: " + ToString(HV_Voltage) + " V" +
     "\nTraction battery voltage2: " + ToString(HV_Voltage2) + " V" +

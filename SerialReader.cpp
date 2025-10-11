@@ -4,31 +4,35 @@
 #include "Contactor.h"
 #include "Throttle.h"
 #include "Timer.h"
-#include "Math.h"
+#include "MathUtils.h"
 #include "VCU.h"
 #include "CAN.h"
 
 #include <vector>
+#include <string>
+#include <Arduino.h>
+
+using namespace std;
 
 typedef void (*cmdPtr)();
 
 struct CommandPointer
 {
   public:
-    String name;
+    string name;
     cmdPtr ptr;
 
-    CommandPointer(String Name, cmdPtr Ptr)
+    CommandPointer(string Name, cmdPtr Ptr)
     {
         name = Name;
         ptr = Ptr;
     }
 };
 
-std::vector<CommandPointer> commandPointers;
+vector<CommandPointer> commandPointers;
 
-String command;
-std::vector<String> parameters;
+string command;
+vector<string> parameters;
 
 Timer logOutputTimer = Timer(1);
 
@@ -44,22 +48,22 @@ char ASCIIToLower(char in)
     return in;
 }
 
-String RemoveNonASCII(String str)
+string RemoveNonASCII(string str)
 {
-    String newStr = str;
+    string newStr = str;
     for (int i = newStr.length() - 1; i >= 0; i--)
         if (!IsASCII(newStr[i]))
-            newStr.remove(i);
+            newStr.erase(newStr.begin() + i);
     return newStr;
 }
 
-void ToLower(String &str)
+void ToLower(string &str)
 {
     for (int i = 0; i < str.length(); i++)
         str[i] = ASCIIToLower(str[i]);
 }
 
-void FindCommandAndParameters(String fullString)
+void FindCommandAndParameters(string fullString)
 {
     int startIndex = 0;
     command = "";
@@ -68,7 +72,7 @@ void FindCommandAndParameters(String fullString)
     for (int i = 0; i < fullString.length(); i++)
         if (fullString[i] == ' ')
         {
-            command = fullString.substring(0, i);
+            command = fullString.substr(0, i);
             startIndex = i + 1;
             break;
         }
@@ -82,12 +86,12 @@ void FindCommandAndParameters(String fullString)
     for (int i = startIndex; i < fullString.length(); i++)
         if (fullString[i] == ' ')
         {
-            parameters.push_back(fullString.substring(startIndex, i));
+            parameters.push_back(fullString.substr(startIndex, i));
             startIndex = i + 1;
         }
 
     if (startIndex < fullString.length())
-        parameters.push_back(fullString.substring(startIndex, fullString.length()));
+        parameters.push_back(fullString.substr(startIndex, fullString.length()));
 }
 
 void ProcessCommand()
@@ -115,7 +119,7 @@ void PrintInverterStatus()
     InverterStatus status = VCU::GetInverterStatus();
     Stats stats = status.stats;
 
-    String str = "Inverter voltage: " + ToString(status.inverterVoltage) + " V " + 
+    string str = "Inverter voltage: " + ToString(status.inverterVoltage) + " V " + 
                  "\n" + stats.GetString() +
                  "\nIs in error state: " + BoolToString(status.error_state);
 
@@ -125,7 +129,7 @@ void PrintInverterStatus()
 void PrintInverterMaxStats()
 {
     Stats stats = VCU::GetMaxRecordedStats();
-    String str = "Max recorded stats:\n" +
+    string str = "Max recorded stats:\n" +
                  stats.GetString();
     PrintSerialMessage(str);
 }
@@ -148,7 +152,7 @@ void SetTorque()
         return;
     }
 
-    short request = parameters[0].toInt();
+    short request = stoi(parameters[0]);
     VCU::SetFinalTorqueRequest(request);
 }
 
@@ -160,7 +164,7 @@ void SetMaxTorque()
         return;
     }
 
-    short request = parameters[0].toInt();
+    short request = stoi(parameters[0]);
     if(VCU::SetMaxTorqueRequest(request))
         PrintSerialMessage("Torque set to " + ToString(request));
 }
@@ -173,7 +177,7 @@ void SetRegenTorque()
         return;
     }
 
-    short request = parameters[0].toInt();
+    short request = stoi(parameters[0]);
     if(VCU::SetRegenTorque(request))
         PrintSerialMessage("Regen torque set to " + ToString(request));
 }
@@ -186,19 +190,19 @@ void SetMinMaxRegenRPMRange()
         return;
     }
 
-    short lowRPM = parameters[0].toInt();
-    short highRPM = parameters[1].toInt();
+    short lowRPM = stoi(parameters[0]);
+    short highRPM = stoi(parameters[1]);
     if(VCU::SetRegenRPMRange(lowRPM, highRPM))
         PrintSerialMessage("Regen RPM range set to " + ToString(lowRPM) + "-" + ToString(highRPM));
 }
 
 void OutputHelp()
 {
-    String outputStr = "Available commands:\n";
+    string outputStr = "Available commands:\n";
     for (int i = 0; i < commandPointers.size(); i++)
         outputStr += commandPointers[i].name + "\n";
 
-    outputStr.remove(outputStr.length() - 1);
+    outputStr.erase(outputStr.length() - 1);
     PrintSerialMessage(outputStr);
 }
 
@@ -239,7 +243,7 @@ void SetContactor()
         return;
     }
 
-    String state = parameters[0];
+    string state = parameters[0];
     ToLower(state);
 
     ContactorTest test = ContactorTest::None;
@@ -269,13 +273,13 @@ void SendCAN()
         return;
     }
 
-    unsigned int ID = parameters[0].toInt();
+    unsigned int ID = stoi(parameters[0]);
 
     int size = Min(parameters.size() - 1, 8);
     unsigned char frame[8];
     for(int i = 0; i < size; i++)
     {
-        frame[i] = parameters[i + 1].toInt();
+        frame[i] = stoi(parameters[i + 1]);
     }
 
     PrintSerialMessage("Sending custom CAN MSG ID: 0x" + IntToHex(ID) + " Bytes: " + BytesToString(frame, 8));
@@ -304,14 +308,15 @@ void InitializeSerialReader()
 
 #define INPUT_BUFFER_SIZE 64
 char serialReadBuffer[INPUT_BUFFER_SIZE];
-void ProcessString()
+void ProcessString(int length)
 {
-    String tempString = serialReadBuffer;
+    string tempString = string(serialReadBuffer, length);
+    
     tempString = RemoveNonASCII(tempString);
     ToLower(tempString);
     FindCommandAndParameters(tempString);
 
-    String outputString = "Received command: {" + command + "} ";
+    string outputString = "Received command: {" + command + "} ";
     for (int i = 0; i < parameters.size(); i++)
         outputString += parameters[i] + " ";
     PrintSerialMessage(outputString);
@@ -341,8 +346,8 @@ void TickSerialReader()
         if (serialTail)
         {
             serialTail = false;
+            ProcessString(idx);
             idx = 0;
-            ProcessString();
         }
         else
         {

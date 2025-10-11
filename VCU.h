@@ -1,6 +1,6 @@
 
 #include <vector>
-#include <Arduino.h>
+#include <string>
 
 class Throttle;
 
@@ -13,7 +13,7 @@ struct Stats
     float inverter_temperature = 0;
     float motor_temperature = 0;
 
-    String GetString();
+    std::string GetString();
 };
 
 struct InverterStatus
@@ -34,7 +34,7 @@ void Tick();
 InverterStatus GetInverterStatus();
 Stats GetMaxRecordedStats();
 void ClearMaxRecordedStats();
-String GetOBCStatus();
+std::string GetOBCStatus();
 
 void SetFinalTorqueRequest(short value);
 bool SetMaxTorqueRequest(short value);

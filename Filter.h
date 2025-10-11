@@ -1,5 +1,5 @@
 
-#include <Arduino.h>
+#include <cstdint>
 
 uint64_t FilterGetTimeMicroseconds();
 

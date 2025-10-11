@@ -1,5 +1,5 @@
 
-#include <Arduino.h>
+#include <string>
 
 class CAN;
 
@@ -22,7 +22,7 @@ struct DCDC_Data
     short temperature[3];
 
     short MaxTemperature();
-    String GetString();
+    std::string GetString();
 };
 
 struct OBC_Data
@@ -45,7 +45,7 @@ struct OBC_Data
     short temperature[4];
 
     short MaxTemperature();
-    String GetString();
+    std::string GetString();
 };
 
 void SetChargeStatus(CmdChargeStatus status, float OBC_HVTargetVoltage, unsigned char OBC_ChargingCurrent);

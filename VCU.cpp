@@ -10,9 +10,14 @@
 #include "Time.h"
 #include "mcp2515.h"
 #include "OutlanderOBC.h"
-#include "Math.h"
+#include "MathUtils.h"
 
-String Stats::GetString()
+#include <cstring>
+#include <Arduino.h>
+
+using namespace std;
+
+string Stats::GetString()
 {
     return "RPM: " + ToString(rpm) + "\nMotor torque: " + ToString(motorTorque) + " nm" +
            "\nMotor power: " + FloatToString(motorPower, 1) + " kw" +
@@ -69,7 +74,7 @@ void SetFinalTorqueRequest(short value)
     if (abs(value) > MaxTorque)
     {
         torqueRequestOverride = 0;
-        PrintSerialMessage("Torque requested is above max torque of " + ToString(MaxTorque) + "!");
+        PrintSerialMessage("Torque requested is above Max torque of " + ToString(MaxTorque) + "!");
     }
     else
         torqueRequestOverride = value;
@@ -85,7 +90,7 @@ bool SetMaxTorqueRequest(short value)
 
     if (value > MAX_TORQUE)
     {
-        PrintSerialMessage("Max torque requested is above max torque of " + ToString(MAX_TORQUE) + "!");
+        PrintSerialMessage("Max torque requested is above Max torque of " + ToString(MAX_TORQUE) + "!");
         return false;
     }
 
@@ -109,7 +114,7 @@ bool SetRegenTorque(short value)
 
     if (value > MAX_TORQUE)
     {
-        PrintSerialMessage("Regen torque requested is above max torque of " + ToString(MAX_TORQUE) + "!");
+        PrintSerialMessage("Regen torque requested is above Max torque of " + ToString(MAX_TORQUE) + "!");
         return false;
     }
 
@@ -166,7 +171,7 @@ void ClearMaxRecordedStats()
     maxStats = Stats();
 }
 
-String GetOBCStatus()
+string GetOBCStatus()
 {
     return GetDCDCData()->GetString() + "\n" + GetOBCData()->GetString();
 }
@@ -364,8 +369,6 @@ void Initialize()
     if (initialized)
         return;
     initialized = true;
-
-    pinMode(DEBUG_LED, OUTPUT);
 
     pinMode(PIN_IGNITION, INPUT_PULLUP);
     pinMode(PIN_DRIVE_MODE, INPUT_PULLUP);
@@ -901,9 +904,9 @@ void ReadPedals()
         {
             float normalizedRegen =
                 (float)(inverterStatus.stats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
-            normalizedRegen = max(0, min(1, normalizedRegen));
+            normalizedRegen = Max(0, Min(1, normalizedRegen));
             final_torque_request = -regenSmoothTorque * normalizedRegen;
-            regenSmoothTorque = max(0, min(regenSmoothTorque + regenTorque * deltaTime / regenSmoothTorqueTime, regenTorque));
+            regenSmoothTorque = Max(0, Min(regenSmoothTorque + regenTorque * deltaTime / regenSmoothTorqueTime, regenTorque));
         }
         else
         {
@@ -928,7 +931,7 @@ void ReadCAN()
         return;
 
     byte inFrame[8];
-    memcpy(&inFrame, recvFrame.data, min(recvFrame.can_dlc, 8));
+    memcpy(&inFrame, recvFrame.data, Min(recvFrame.can_dlc, 8));
 
     if (!IsCanIDValid(recvFrame.can_id))
     {
@@ -983,17 +986,17 @@ void ReadCAN()
         if ((inFrame[2] & 0x04) == 0x04) // indicates negative value
             torque = torque | 0xf800;    // pad leading 1s for 2s complement signed
         inverterStatus.stats.motorTorque = torque / 2;
-        maxStats.motorTorque = max(maxStats.motorTorque, inverterStatus.stats.motorTorque);
+        maxStats.motorTorque = Max(maxStats.motorTorque, inverterStatus.stats.motorTorque);
 
         rpm = (short)(inFrame[4] << 8 | inFrame[5]);
         if ((inFrame[4] & 0x40) == 0x40) // indicates negative value
             rpm = rpm | 0x8000;          // pad leading 1s for 2s complement signed
         inverterStatus.stats.rpm = rpm / 2;
-        maxStats.rpm = max(maxStats.rpm, inverterStatus.stats.rpm);
+        maxStats.rpm = Max(maxStats.rpm, inverterStatus.stats.rpm);
 
         // torque (Nm) to power (W) = 2 x pi / 60 * rpm * torque
         inverterStatus.stats.motorPower = rpm * torque / 9548.8f;
-        maxStats.motorPower = max(maxStats.motorPower, inverterStatus.stats.motorPower);
+        maxStats.motorPower = Max(maxStats.motorPower, inverterStatus.stats.motorPower);
 
         inverterStatus.error_state = (inFrame[6] & 0xb0) != 0x00;
         break;
@@ -1001,8 +1004,8 @@ void ReadCAN()
     case MsgID::RcvTempF:
         inverterStatus.stats.motor_temperature = FahrenheitToCelsius(inFrame[1]);
         inverterStatus.stats.inverter_temperature = FahrenheitToCelsius(inFrame[2]);
-        maxStats.motor_temperature = max(maxStats.motor_temperature, inverterStatus.stats.motor_temperature);
-        maxStats.inverter_temperature = max(maxStats.inverter_temperature, inverterStatus.stats.inverter_temperature);
+        maxStats.motor_temperature = Max(maxStats.motor_temperature, inverterStatus.stats.motor_temperature);
+        maxStats.inverter_temperature = Max(maxStats.inverter_temperature, inverterStatus.stats.inverter_temperature);
         break;
 
     default:
@@ -1025,7 +1028,7 @@ void PrintFailures()
 void PrintDebug()
 {
     if (printThrottle && throttlePrintTimer.HasTriggered())
-        PrintSerialMessage(String(throttleManager.GetNormalizedThrottle()));
+        PrintSerialMessage(ToString(throttleManager.GetNormalizedThrottle()));
 }
 
 void ControlVacuum()

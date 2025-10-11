@@ -4,6 +4,9 @@
 #include "mcp2515.h" // autowp-mcp2515
 
 #include <SPI.h>
+#include <string>
+
+using namespace std;
 
 bool CAN::printReceive = false;
 
@@ -21,7 +24,7 @@ CAN::~CAN()
     delete mcp2515;
 }
 
-String ErrToStr(MCP2515::ERROR errType)
+string ErrToStr(MCP2515::ERROR errType)
 {
     switch (errType)
     {

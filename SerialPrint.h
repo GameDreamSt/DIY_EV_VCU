@@ -1,16 +1,16 @@
 
-#include <Arduino.h>
 #include <vector>
+#include <string>
 
-void PrintSerialMessage(String outputMsg);
-void PrintSerialMessageHEX(String message, int hexData);
-void PrintSerialMessage(String message, int intData);
+void PrintSerialMessage(std::string outputMsg);
+void PrintSerialMessageHEX(std::string message, int hexData);
+void PrintSerialMessage(std::string message, int intData);
 
 void TickSerialWriter();
 
-String FloatToString(float var, int precision);
-String ToString(int var);
-String BoolToString(bool var);
-String IntToHex(int n);
-String BytesToString(std::vector<unsigned char> data);
-String BytesToString(unsigned char *data, int length);
+std::string FloatToString(float var, int precision);
+std::string ToString(int var);
+std::string BoolToString(bool var);
+std::string IntToHex(int n);
+std::string BytesToString(std::vector<unsigned char> data);
+std::string BytesToString(unsigned char *data, int length);
