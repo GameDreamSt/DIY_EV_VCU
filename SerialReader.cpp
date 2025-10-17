@@ -286,6 +286,11 @@ void SendCAN()
     VCU::SendCustomCanMessage(ID, frame);
 }
 
+void TogglePPDebug()
+{
+    VCU::ToggleDebugPP();
+}
+
 void InitializeSerialReader()
 {
     commandPointers.push_back(CommandPointer("help", OutputHelp));
@@ -304,6 +309,7 @@ void InitializeSerialReader()
     commandPointers.push_back(CommandPointer("togglegen2", ToggleGen2));
     commandPointers.push_back(CommandPointer("testcontactor", SetContactor));
     commandPointers.push_back(CommandPointer("sendcan", SendCAN));
+    commandPointers.push_back(CommandPointer("chargepp", TogglePPDebug));
 }
 
 #define INPUT_BUFFER_SIZE 64

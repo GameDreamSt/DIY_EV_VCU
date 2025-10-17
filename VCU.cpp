@@ -187,6 +187,29 @@ enum PPStatus
     PlugMoving,
 };
 
+string PPStatusToString(PPStatus status)
+{
+    switch(status)
+    {
+        case PPStatus::Unknown: return "Unknown";
+        case PPStatus::NotConnected: return "NotConnected";
+        case PPStatus::NoVCUResistor: return "NoVCUResistor";
+        case PPStatus::NoInletResistor: return "NoInletResistor";
+        case PPStatus::PlugNotInserted: return "PlugNotInserted";
+        case PPStatus::PlugInserted: return "PlugInserted";
+        case PPStatus::PlugMoving: return "PlugMoving";
+        default: return "Not implemented status {" + to_string((int)status) + "}";
+    }
+
+    return "";
+}
+
+bool printPP;
+void ToggleDebugPP()
+{
+    printPP = !printPP;
+}
+
 float lastRawPPValue = 0;
 Timer PPTimer = Timer(0.1f);
 PPStatus GetProximityPilotStatus() // Assuming VCCVoltage
@@ -1027,8 +1050,16 @@ void PrintFailures()
 
 void PrintDebug()
 {
-    if (printThrottle && throttlePrintTimer.HasTriggered())
+    if(!throttlePrintTimer.HasTriggered())
+        return;
+    if (printThrottle)
         PrintSerialMessage(ToString(throttleManager.GetNormalizedThrottle()));
+
+    if(printPP)
+    {
+        auto ppStatus = GetProximityPilotStatus();
+        PrintSerialMessage("PPStatus: " + PPStatusToString(ppStatus) + " | " + proximityPilotSensor.GetDebugValuesString());
+    }
 }
 
 void ControlVacuum()

@@ -1,5 +1,6 @@
 
 #include <vector>
+#include <string>
 
 class Throttle
 {
@@ -27,6 +28,7 @@ class Throttle
 
     float GetNormalizedThrottle();
     void PrintDebugValues();
+    std::string GetDebugValuesString();
     float GetRawValue();
 
     std::vector<unsigned char> Save();

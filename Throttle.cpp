@@ -38,8 +38,15 @@ float Throttle::GetAverageAnalog()
 
 void Throttle::PrintDebugValues()
 {
-    PrintSerialMessage("T" + ToString(analogPin) + ": " + ToString(currentThrottle) + " " + ToString(lowestValue) + " " +
-                           ToString(highestValue) + " " + ToString(GetNormalizedThrottle()));
+    PrintSerialMessage(GetDebugValuesString());
+}
+
+std::string Throttle::GetDebugValuesString()
+{
+    return "T" + ToString(analogPin) + ": " + ToString(currentThrottle) + 
+    " " + ToString(lowestValue) + 
+    " " + ToString(highestValue) + 
+    " " + ToString(GetNormalizedThrottle());
 }
 
 void Throttle::Tick()

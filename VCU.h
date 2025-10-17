@@ -36,6 +36,8 @@ Stats GetMaxRecordedStats();
 void ClearMaxRecordedStats();
 std::string GetOBCStatus();
 
+void ToggleDebugPP();
+
 void SetFinalTorqueRequest(short value);
 bool SetMaxTorqueRequest(short value);
 
