@@ -10,6 +10,7 @@ void TickSerialWriter();
 
 std::string FloatToString(float var, int precision);
 std::string ToString(int var);
+std::string ToString(float var);
 std::string BoolToString(bool var);
 std::string IntToHex(int n);
 std::string BytesToString(std::vector<unsigned char> data);

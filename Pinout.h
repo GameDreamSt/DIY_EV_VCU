@@ -22,7 +22,14 @@
 #define MKRCAN_MCP2515_INT_PIN 5 // Interrupt pin for CAN messages (not used)
 
 // ANALOG TO DIGITAL
+#ifdef CONFIG_IDF_TARGET_ESP32
 #define APIN_VACUUM 35          // G35 Vacuum sensor
 #define APIN_Throttle1 39       // G39=SN Analog throttle channel 1
 #define APIN_Throttle2 34       // G34 Analog throttle channel 2
 #define APIN_CHARGER_PP 36      // G36=SP Proximity Pilot
+#else
+#define APIN_VACUUM 7           // ADC7 G35 Vacuum sensor
+#define APIN_Throttle1 3        // ADC3 G39=SN Analog throttle channel 1
+#define APIN_Throttle2 6        // ADC6 G34 Analog throttle channel 2
+#define APIN_CHARGER_PP 0       // ADC0 G36=SP Proximity Pilot
+#endif

@@ -216,7 +216,7 @@ PPStatus GetProximityPilotStatus() // Assuming VCCVoltage
 {
     if(PPTimer.HasTriggered())
     {
-        lastRawPPValue = proximityPilotSensor.GetRawValue() / VCCVoltage;
+        lastRawPPValue = proximityPilotSensor.GetRawValue();
     }
     
     if(FloatAbout(lastRawPPValue, 0, 0.5f))
@@ -1099,6 +1099,7 @@ void Tick()
 
     throttleManager.Tick();
     vacuumSensor.Tick();
+    proximityPilotSensor.Tick();
 
     ReadPedals();
     ControlVacuum();

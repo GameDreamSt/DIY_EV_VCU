@@ -6,7 +6,7 @@
 #include <math.h>
 #include <Arduino.h>
 
-#define READ_AVG 1
+#define READ_AVG 5
 #define DEADZONE_LOW 0.05
 #define DEADZONE_HIGH 0.95
 

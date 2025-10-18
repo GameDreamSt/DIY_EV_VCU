@@ -47,6 +47,8 @@ string FloatToString(float var, int precision)
     return wholeNum + "." + fraction;
 }
 
+string ToString(float var) { return FloatToString(var, 2); }
+
 string ToString(int var)
 {
     return to_string(var);
