@@ -60,7 +60,7 @@ bool vacuumPumpFailure;
 Throttle* GetVacuumSensor() { return &vacuumSensor; }
 
 #define LOWEST_VOLTAGE 210
-#define MAX_CHARGE_VOLTAGE 249
+#define MAX_CHARGE_VOLTAGE 240
 #define MAX_CHARGE_CURRENT 12 // limited by OBC
 
 ushort ThrotVal = 0; // analog value of throttle position.
@@ -219,15 +219,15 @@ PPStatus GetProximityPilotStatus() // Assuming VCCVoltage
         lastRawPPValue = proximityPilotSensor.GetRawValue();
     }
     
-    if(FloatAbout(lastRawPPValue, 0, 0.5f))
+    if(FloatAbout(lastRawPPValue, 0, 0.2f))
         return PPStatus::NotConnected;
     if(FloatAbout(lastRawPPValue, 1, 0.05f))
         return PPStatus::NoInletResistor;
-    if(FloatAbout(lastRawPPValue, 0.891f, 0.03f)) // 2700 / (2700 + 330)
+    if(FloatAbout(lastRawPPValue, 0.81f, 0.05f))
         return PPStatus::PlugNotInserted;
-    if(FloatAbout(lastRawPPValue, 0.905f, 0.03f)) // (2700 + 150 + 330) / (2700 + 150 + 330 + 330)
+    if(FloatAbout(lastRawPPValue, 0.40f, 0.05f))
         return PPStatus::PlugInserted;
-    if(FloatAbout(lastRawPPValue, 0.896f, 0.03f)) // (2700 + 150) / (2700 + 150 + 330)
+    if(FloatAbout(lastRawPPValue, 0.58f, 0.05f))
         return PPStatus::PlugMoving;
 
     return PPStatus::Unknown;
@@ -564,7 +564,7 @@ void HighVoltageControl()
 
 bool ChargerControl()
 {
-    bool shouldChargerBeOn = driveMode || GetProximityPilotStatus() >= PPStatus::PlugInserted;
+    bool shouldChargerBeOn = ignitionOn || GetProximityPilotStatus() >= PPStatus::PlugInserted;
 
     if(shouldChargerBeOn)
     {
@@ -585,7 +585,7 @@ void HVChargeControl()
         return;
     }
 
-    bool canCharge = prechargeComplete; //&& inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE;
+    bool canCharge = prechargeComplete && inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE && GetOBCData()->MaxTemperature() < 60;
 
     CmdChargeStatus chargeStatus = ChargerStatusPlugInserted() ? (canCharge ? CmdChargeStatus::Charge : CmdChargeStatus::Connect) : CmdChargeStatus::Off;
 
@@ -605,15 +605,15 @@ Timer lowChargeCooldownTimer = Timer(5);
 bool lowCharging = false;
 bool ShouldChargeDCDC()
 {
-    bool canCharge = prechargeComplete && inverterStatus.inverterVoltage > LOWEST_VOLTAGE;
+    bool canCharge = prechargeComplete && GetOBCData()->HV_Voltage > LOWEST_VOLTAGE && GetDCDCData()->MaxTemperature() < 60;
 
     if(!canCharge)
         return false;
 
-    if(ignitionOn)
+    if(driveMode)
         return true;
 
-    if(!ChargerStatusPlugInserted())
+    if(!ignitionOn && !ChargerStatusPlugInserted())
         return false;
 
     if(lowCharging)
@@ -624,7 +624,7 @@ bool ShouldChargeDCDC()
             lowCharging = false;
         }
     }
-    else if(lowChargeCooldownTimer.HasTriggered() && GetDCDCData()->supplyVoltage < 12.5f)
+    else if(lowChargeCooldownTimer.HasTriggered() && GetDCDCData()->supplyVoltage < 12.3f)
     {
         PrintSerialMessage("DC/DC started");
         lowCharging = true;
@@ -916,10 +916,10 @@ void ToggleThrottlePrint()
     printThrottle = !printThrottle;
 }
 
-bool printThrottleDetaiiled;
+bool printThrottleDetailed;
 void ToggleThrottlePrintDetailed()
 {
-    printThrottleDetaiiled = !printThrottleDetaiiled;
+    printThrottleDetailed = !printThrottleDetailed;
 }
 
 void ReadPedals()
@@ -1064,7 +1064,7 @@ void PrintDebug()
     if (printThrottle)
         PrintSerialMessage(ToString(throttleManager.GetNormalizedThrottle()));
 
-    if(printThrottleDetaiiled)
+    if(printThrottleDetailed)
         throttleManager.PrintDebugValues();
 
     if(printPP)
@@ -1077,7 +1077,7 @@ void PrintDebug()
 void ControlVacuum()
 {
     float rawValue = vacuumSensor.GetRawValue();
-    if(rawValue < 0.01f || vacuumPumpFailure || !ignitionOn || ChargerStatusPlugInserted()) // Disconnected or failed or charging mode
+    if(rawValue < 0.01f || vacuumPumpFailure || !driveMode || ChargerStatusPlugInserted()) // Disconnected or failed or charging mode
     {
         SetContactor(PIN_VACUUM_PUMP, false);
         vacuumTimeOn = 0;
@@ -1119,11 +1119,13 @@ void Tick()
     CheckIgnition();
     CheckDriveMode();
 
+    LowChargeControl();
+    TemperatureControl()
+
     if (TimerHV.HasTriggered())
     {
         HighVoltageControl();
         HVChargeControl();
-        TemperatureControl();
     }
 
     ReadCAN();
