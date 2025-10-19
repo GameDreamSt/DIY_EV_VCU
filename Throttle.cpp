@@ -181,7 +181,7 @@ float ThrottleManager::GetNormalizedThrottle()
         for (int j = i + 1; j < throttles.size(); j++)
         {
             float value = abs(values[i] - values[j]);
-            if (value > 0.07f) // 7% derived from testing
+            if (value > 0.13f) // derived from testing
             {
                 value *= 100;
                 PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) + " detected! " +

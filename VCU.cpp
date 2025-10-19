@@ -1120,7 +1120,7 @@ void Tick()
     CheckDriveMode();
 
     LowChargeControl();
-    TemperatureControl()
+    TemperatureControl();
 
     if (TimerHV.HasTriggered())
     {
