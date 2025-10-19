@@ -19,8 +19,6 @@ class Throttle
     float GetAverageAnalog();
 
   public:
-    static bool printDetailedLog;
-
     Throttle(int analogToDigitalPin);
 
     void Tick();
@@ -44,4 +42,5 @@ class ThrottleManager
     void Tick();
     void AddThrottle(Throttle throttle);
     float GetNormalizedThrottle();
+    void PrintDebugValues();
 };

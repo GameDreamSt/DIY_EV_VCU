@@ -46,6 +46,7 @@ bool SetRegenRPMRange(short lowRPM, short highRPM);
 
 void SetBatteryDischargeLimit(float kilowatts);
 void ToggleThrottlePrint();
+void ToggleThrottlePrintDetailed();
 Throttle* GetVacuumSensor();
 
 void SendCustomCanMessage(unsigned int ID, unsigned char data[8]);

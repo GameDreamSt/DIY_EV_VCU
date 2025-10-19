@@ -7,7 +7,7 @@
 #include "SerialPrint.h"
 #include "Throttle.h"
 #include "Timer.h"
-#include "Time.h"
+#include "EVTime.h"
 #include "mcp2515.h"
 #include "OutlanderOBC.h"
 #include "MathUtils.h"
@@ -414,6 +414,8 @@ void Initialize()
 
     throttleManager.AddThrottle(Throttle(APIN_Throttle1));
     throttleManager.AddThrottle(Throttle(APIN_Throttle2));
+    analogSetPinAttenuation(APIN_Throttle1, ADC_6db);
+    analogSetPinAttenuation(APIN_Throttle2, ADC_2_5db);
 
     dummyQueries.push_back(DummyQueryResponse(0x797, 0x79A, 0x04621103A3000000)); // 12V battery, [5]A3 = 13.04V / 0.08
     dummyQueries.push_back(DummyQueryResponse(0x745, 0x765)); // BCM body control module
@@ -914,6 +916,12 @@ void ToggleThrottlePrint()
     printThrottle = !printThrottle;
 }
 
+bool printThrottleDetaiiled;
+void ToggleThrottlePrintDetailed()
+{
+    printThrottleDetaiiled = !printThrottleDetaiiled;
+}
+
 void ReadPedals()
 {
     float normalizedThrottle = throttleManager.GetNormalizedThrottle();
@@ -1052,8 +1060,12 @@ void PrintDebug()
 {
     if(!throttlePrintTimer.HasTriggered())
         return;
+
     if (printThrottle)
         PrintSerialMessage(ToString(throttleManager.GetNormalizedThrottle()));
+
+    if(printThrottleDetaiiled)
+        throttleManager.PrintDebugValues();
 
     if(printPP)
     {

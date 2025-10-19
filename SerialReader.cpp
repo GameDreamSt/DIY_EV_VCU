@@ -218,7 +218,7 @@ void GetThrottle()
 
 void GetThrottleDetailed()
 {
-    Throttle::printDetailedLog = !Throttle::printDetailedLog;
+    VCU::ToggleThrottlePrintDetailed();
 }
 
 bool printVacuumSensorData;

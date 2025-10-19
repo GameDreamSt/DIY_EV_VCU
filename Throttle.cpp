@@ -6,18 +6,16 @@
 #include <math.h>
 #include <Arduino.h>
 
-#define READ_AVG 5
+#define READ_AVG 10
 #define DEADZONE_LOW 0.05
 #define DEADZONE_HIGH 0.95
 
 int floatSize = sizeof(float);
 
-bool Throttle::printDetailedLog = false;
-
-Timer logTimer = Timer(0.1f);
-
 Throttle::Throttle(int analogToDigitalPin)
 {
+    Reset();
+    beingCalibrated = false;
     analogPin = analogToDigitalPin;
     inputResolution = pow(2, ANALOG_RES);
 }
@@ -46,35 +44,31 @@ std::string Throttle::GetDebugValuesString()
     return "T" + ToString(analogPin) + ": " + ToString(currentThrottle) + 
     " " + ToString(lowestValue) + 
     " " + ToString(highestValue) + 
-    " " + ToString(GetNormalizedThrottle());
+    " " + ToString(GetNormalizedThrottle()) + (beingCalibrated ? " Being calibrated..." : " Calibration completed.");
 }
 
 void Throttle::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
-    if (printDetailedLog && logTimer.HasTriggered())
-        PrintDebugValues();
-
-    if (currentThrottle < 0.05f) // If below 5% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
+    if (currentThrottle < 0.02f) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
     {
         Reset();
         return;
     }
 
-    if (lowestValue < 0.06f) // Initialize the lowest value
-        lowestValue = highestValue;
-
-    if (currentThrottle < lowestValue + (highestValue - lowestValue) * 0.05f)
-        beingCalibrated = false;
-    if (currentThrottle < lowestValue)
+    if (lowestValue < 0.02f || currentThrottle < lowestValue)
         lowestValue = currentThrottle;
+
     if (currentThrottle > calibrationValue)
     {
         calibrationValue = currentThrottle * 1.05f;
         highestValue = currentThrottle;
         beingCalibrated = true;
     }
+
+    if (currentThrottle < lowestValue + (highestValue - lowestValue) * 0.05f)
+        beingCalibrated = false;
 }
 
  float Throttle::GetRawValue()
@@ -160,6 +154,14 @@ void ThrottleManager::Tick()
 void ThrottleManager::AddThrottle(Throttle throttle)
 {
     throttles.push_back(throttle);
+}
+
+void ThrottleManager::PrintDebugValues()
+{
+    for(int i = 0; i < throttles.size(); i++)
+    {
+        throttles[i].PrintDebugValues();
+    }
 }
 
 float ThrottleManager::GetNormalizedThrottle()
