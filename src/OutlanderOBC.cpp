@@ -1,9 +1,9 @@
 
 #include "OutlanderOBC.h"
 
-#include "CAN.h"
-#include "SerialPrint.h"
-#include "MathUtils.h"
+#include "EVLib/CAN.h"
+#include "EVLib/SerialPrint.h"
+#include "EVLib/MathUtils.h"
 
 #include <cstring>
 

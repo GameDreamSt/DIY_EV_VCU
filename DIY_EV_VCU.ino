@@ -1,8 +1,9 @@
 
-#include "SerialReader.h"
-#include "SerialPrint.h"
-#include "EVTime.h"
-#include "VCU.h"
+#include "src/EVLib/SerialReader.h"
+#include "src/EVLib/SerialPrint.h"
+#include "src/EVLib/EVTime.h"
+#include "src/VCU.h"
+#include "src/Commands.h"
 
 void setup()
 {
@@ -12,6 +13,7 @@ void setup()
 
     TickTime(); // Initialize delta time
     InitializeSerialReader();
+    commands::InitializeCommands();
     VCU::Initialize();
 }
 

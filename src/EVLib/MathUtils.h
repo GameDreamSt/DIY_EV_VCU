@@ -1,10 +1,10 @@
 
 #ifndef Max
-#define Max(a,b) a > b ? a : b
+#define Max(a,b) (a > b ? a : b)
 #endif
 
 #ifndef Min
-#define Min(a,b) a < b ? a : b
+#define Min(a,b) (a < b ? a : b)
 #endif
 
 #ifndef Clamp
@@ -16,5 +16,5 @@
 #endif
 
 #ifndef FloatAbout
-#define FloatAbout(value, target, deviation) value > target - deviation && value < target + deviation
+#define FloatAbout(value, target, deviation) (value > target - deviation && value < target + deviation)
 #endif

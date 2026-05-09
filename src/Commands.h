@@ -1,0 +1,5 @@
+
+namespace commands
+{
+    void InitializeCommands();
+}
