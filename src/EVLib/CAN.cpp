@@ -10,7 +10,7 @@ using namespace std;
 
 bool CAN::printReceive = false;
 
-CAN::CAN(int chipSelectPin, int interruptPin)
+CAN::CAN(int chipSelectPin)
 {
     mcp2515 = new MCP2515(chipSelectPin);
 

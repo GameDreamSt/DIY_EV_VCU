@@ -1107,7 +1107,7 @@ void ControlVacuum()
 void Tick()
 {
     if (can == nullptr) // Initialize later so the upload process doesn't hang up
-        can = new CAN(MKRCAN_MCP2515_CS_PIN, MKRCAN_MCP2515_INT_PIN);
+        can = new CAN(MKRCAN_MCP2515_CS_PIN);
 
     throttleManager.Tick();
     vacuumSensor.Tick();

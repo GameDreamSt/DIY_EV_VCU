@@ -2,13 +2,17 @@
 #include "HardwareSerial.h"
 #include "LIN_Manager.h"
 #include "LIN_master_HardwareSerial.h"
+#include "SerialPrint.h"
+
+#include <string>
+
+using namespace std;
 
 #define LIN_PAUSE 200 // pause [ms] between LIN frames
-#define SERIAL_CONSOLE Serial
 
 #define LIN_NETWORK_COUNT 1
 
-LIN_Master_HardwareSerial LIN_NETWORKS[LIN_NETWORK_COUNT] = {LIN_Master_HardwareSerial(Serial1, "Master")};
+LIN_Master_HardwareSerial LIN_NETWORKS[LIN_NETWORK_COUNT] = {LIN_Master_HardwareSerial(Serial2, "Master")};
 
 LIN_Manager::LIN_Manager(int linIndex)
 {
@@ -17,9 +21,9 @@ LIN_Manager::LIN_Manager(int linIndex)
 
     if (linIndex >= LIN_NETWORK_COUNT)
     {
-        String str = "Trying to start a LIN network with out of bounds index! {" + String(linIndex) + "/" +
-                     String(LIN_NETWORK_COUNT) + "}";
-        SERIAL_CONSOLE.println(str);
+        string str = "Trying to start a LIN network with out of bounds index! {" + ToString(linIndex) + "/" +
+                     ToString(LIN_NETWORK_COUNT) + "}";
+        PrintSerialMessage(str);
         return;
     }
 
@@ -53,8 +57,7 @@ void LIN_Manager::Tick()
 
 void LIN_Manager::Write_LIN_Data()
 {
-    // SERIAL_CONSOLE.print("LIN: Current state ID: ");
-    // SERIAL_CONSOLE.println((int)LIN_NET->getState());
+    // PrintSerialMessage("LIN: Current state ID: " + ToString((int)LIN_NET->getState()));
 
     bool hasMessage = false;
     int firstValidMessageIndex = 0;
@@ -70,12 +73,11 @@ void LIN_Manager::Write_LIN_Data()
 
     if (!hasMessage)
     {
-        SERIAL_CONSOLE.println("LIN: No messages are registered!");
+        PrintSerialMessage("LIN: No messages are registered!");
         return;
     }
 
-    // SERIAL_CONSOLE.print("Counter: ");
-    // SERIAL_CONSOLE.println(counter);
+    // PrintSerialMessage("LIN: Counter: " + ToString(counter));
 
     LIN_Message msg = messages[counter];
 
@@ -95,25 +97,13 @@ void LIN_Manager::Write_LIN_Data()
 
     if (msg.isReceiver)
     {
-        /*SERIAL_CONSOLE.print("LIN: Preparing to receive slave response ID:");
-        SERIAL_CONSOLE.print(msg.ID, HEX);
-        SERIAL_CONSOLE.print(", size:");
-        SERIAL_CONSOLE.println(msg.dataSize);*/
+        //PrintSerialMessage("LIN: Preparing to receive slave response ID: 0x" + IntToHex(msg.ID) + ", size:" + ToString(msg.dataSize));
         LIN_NET->receiveSlaveResponse(LIN_Master_Base::LIN_V2, msg.ID, msg.dataSize);
     }
     else
     {
-        /*SERIAL_CONSOLE.print("LIN: Preparing to send master request ID:");
-        SERIAL_CONSOLE.print(msg.ID, HEX);
-        SERIAL_CONSOLE.print(", size:");
-        SERIAL_CONSOLE.print(msg.dataSize);
-        SERIAL_CONSOLE.print(", data: ");
-        for (int i = 0; i < 8; i++)
-        {
-            SERIAL_CONSOLE.print(msg.data[i], HEX);
-            SERIAL_CONSOLE.print(" ");
-        }
-        SERIAL_CONSOLE.println();*/
+        /*PrintSerialMessage("LIN: Preparing to send master request ID: 0x" + IntToHex(msg.ID) +
+        ", size:" + ToString(msg.dataSize) + ", data: " + BytesToString(&msg.data[0], 8));*/
         LIN_NET->sendMasterRequest(LIN_Master_Base::LIN_V2, msg.ID, msg.dataSize, msg.data);
     }
 }
@@ -135,54 +125,53 @@ void LIN_Manager::Read_LIN_Data()
     bool hasError = error != LIN_Master_Base::NO_ERROR;
     bool canDebug = debug || hasError;
 
+    string debugOut = "LIN:";
+
     if (canDebug)
     {
-        SERIAL_CONSOLE.print(LIN_NET->nameLIN);
+        debugOut += string(LIN_NET->nameLIN) + ", ";
 
         if (Type == LIN_Master_Base::MASTER_REQUEST)
-            SERIAL_CONSOLE.print(", request, ID=0x");
+            debugOut += "request";
         else
-            SERIAL_CONSOLE.print(", response, ID=0x");
+            debugOut += "response";
 
-        SERIAL_CONSOLE.print(Id, HEX);
+        debugOut += ", ID=0x" + IntToHex(Id);
 
         if (hasError)
         {
-            SERIAL_CONSOLE.print(", err=0x");
-            SERIAL_CONSOLE.print(error, HEX);
+            debugOut += ", err=0x" + IntToHex(error);
 
             switch (error)
             {
             default:
-                SERIAL_CONSOLE.println(" no error");
+                debugOut += " no error";
                 break;
             case LIN_Master_Base::ERROR_STATE:
-                SERIAL_CONSOLE.println(" error in LIN state machine");
+                debugOut += " error in LIN state machine";
                 break;
             case LIN_Master_Base::ERROR_ECHO:
-                SERIAL_CONSOLE.println(" error reading response echo");
+                debugOut += " error reading response echo";
                 break;
             case LIN_Master_Base::ERROR_TIMEOUT:
-                SERIAL_CONSOLE.println(" frame timeout error");
+                debugOut += " frame timeout error";
                 break;
             case LIN_Master_Base::ERROR_CHK:
-                SERIAL_CONSOLE.println(" LIN checksum error");
+                debugOut += " LIN checksum error";
                 break;
             case LIN_Master_Base::ERROR_MISC:
-                SERIAL_CONSOLE.println(" misc error, should not occur");
+                debugOut += " misc error, should not occur";
                 break;
             }
         }
         else
         {
-            SERIAL_CONSOLE.print(", data=");
+            debugOut += ", data=";
             for (uint8_t i = 0; (i < NumData); i++)
             {
-                SERIAL_CONSOLE.print("0x");
-                SERIAL_CONSOLE.print((int)Data[i], HEX);
-                SERIAL_CONSOLE.print(" ");
+                debugOut += "0x" + IntToHex((int)Data[i]) + " ";
             }
-            SERIAL_CONSOLE.println();
+            PrintSerialMessage(debugOut);
         }
     }
 
@@ -201,9 +190,7 @@ void LIN_Manager::Read_LIN_Data()
         }
         else
         {
-            SERIAL_CONSOLE.print("Received a message, but the message ID isn't registered! ");
-            SERIAL_CONSOLE.print(Id, HEX);
-            SERIAL_CONSOLE.println();
+            PrintSerialMessage("LIN: Received a message, but the message ID isn't registered! " + IntToHex(Id));
         }
     }
 
@@ -250,10 +237,7 @@ void LIN_Manager::SetRequest(uint8_t ID, uint8_t dataSize, uint8_t data[8])
 
     if (msg.ID == 0)
     {
-        SERIAL_CONSOLE.print("LIN: setting NEW request for ID:");
-        SERIAL_CONSOLE.print(ID, HEX);
-        SERIAL_CONSOLE.print(", of size:");
-        SERIAL_CONSOLE.println(dataSize);
+        PrintSerialMessage("LIN: setting NEW request for ID:" + IntToHex(ID) + ", of size:" + ToString(dataSize));
 
         LIN_Message newMsg;
         newMsg.ID = ID;
@@ -263,10 +247,7 @@ void LIN_Manager::SetRequest(uint8_t ID, uint8_t dataSize, uint8_t data[8])
         return;
     }
 
-    /*SERIAL_CONSOLE.print("LIN: setting request for ID:");
-    SERIAL_CONSOLE.print(ID, HEX);
-    SERIAL_CONSOLE.print(", of size:");
-    SERIAL_CONSOLE.println(dataSize);*/
+    //PrintSerialMessage("LIN: setting request for ID:" + IntToHex(ID) + ", of size:" + ToString(dataSize));
 
     msg.dataSize = dataSize;
     memcpy(msg.data, data, 8);
@@ -281,10 +262,7 @@ void LIN_Manager::SetReceiver(uint8_t ID, uint8_t dataSize)
 
     if (msg.ID == 0)
     {
-        SERIAL_CONSOLE.print("LIN: setting NEW receiver for ID:");
-        SERIAL_CONSOLE.print(ID, HEX);
-        SERIAL_CONSOLE.print(", of size:");
-        SERIAL_CONSOLE.println(dataSize);
+        PrintSerialMessage("LIN: setting NEW receiver for ID:" + IntToHex(ID) + ", of size:" + ToString(dataSize));
 
         LIN_Message newMsg;
         newMsg.ID = ID;
@@ -294,10 +272,7 @@ void LIN_Manager::SetReceiver(uint8_t ID, uint8_t dataSize)
         return;
     }
 
-    /*SERIAL_CONSOLE.print("LIN: setting request for ID:");
-    SERIAL_CONSOLE.print(ID, HEX);
-    SERIAL_CONSOLE.print(", of size:");
-    SERIAL_CONSOLE.println(dataSize);*/
+    //PrintSerialMessage("LIN: setting receiver for ID:" + IntToHex(ID) + ", of size:" + ToString(dataSize));
 
     msg.dataSize = dataSize;
     msg.dataValid = false;

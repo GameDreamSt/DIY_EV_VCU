@@ -4,6 +4,7 @@
 #include "EVLib/LIN_Manager.h"
 
 #include "EVLib/SerialPrint.h"
+#include "EVLib/SerialReader.h"
 
 #include <vector>
 #include <string>
@@ -19,25 +20,22 @@ enum LIN_Message_ID
     VAG_PTC_RECEIVE = 0xD3,
 };
 
-void InitializePTC()
-{
-    LIN = LIN_Manager(0);
-}
-
 bool LIN_Boot_Sent = false;
 int counter;
 int ptcPowerRequest = 0;
 
-void ToggleLINDebugMode(vector<string> parameters)
+void ToggleLINDebugMode()
 {
     LIN.ToggleDebugMode();
 }
 
-void SetPTCPower(vector<string> parameters)
+void SetPTCPower()
 {
+    auto parameters = *GetParameters();
+
     if(parameters.size() < 1)
     {
-        PrintSerialMessage("Needs parameter!");
+        PrintSerialMessage("Needs a parameter!");
         return;
     }
 
@@ -52,6 +50,14 @@ void SetPTCPower(vector<string> parameters)
     {
         PrintSerialMessage("Setting power to " + ToString(ptcPowerRequest) + "%");
     }
+}
+
+void InitializePTC()
+{
+    LIN = LIN_Manager(0);
+
+    AddCommand(CommandPointer("lindebug", ToggleLINDebugMode));
+    AddCommand(CommandPointer("ptcpower", SetPTCPower));
 }
 
 void TickPTC()

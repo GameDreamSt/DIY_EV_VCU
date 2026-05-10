@@ -12,7 +12,7 @@ class CAN
   public:
     static bool printReceive;
 
-    CAN(int chipSelectPin, int interruptPin);
+    CAN(int chipSelectPin);
     ~CAN();
 
     void Transmit(can_frame canFrame);

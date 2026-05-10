@@ -4,6 +4,7 @@
 #include "src/EVLib/EVTime.h"
 #include "src/VCU.h"
 #include "src/Commands.h"
+#include "src/VAG_PTC_LIN.h"
 
 void setup()
 {
@@ -15,12 +16,14 @@ void setup()
     InitializeSerialReader();
     commands::InitializeCommands();
     VCU::Initialize();
+    InitializePTC();
 }
 
 void loop()
 {
     TickTime(); // Recalculate delta time
     VCU::Tick();
+    TickPTC();
     TickSerialReader();
     TickSerialWriter();
 }
