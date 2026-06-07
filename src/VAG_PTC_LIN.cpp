@@ -26,7 +26,10 @@ int ptcPowerRequest = 0;
 
 void ToggleLINDebugMode()
 {
-    LIN.ToggleDebugMode();
+    if(LIN.ToggleDebugMode())
+        PrintSerialMessage("LIN is now in debug mode");
+    else
+        PrintSerialMessage("LIN is now in silent mode");
 }
 
 void SetPTCPower()
@@ -58,13 +61,6 @@ void InitializePTC()
 
     AddCommand(CommandPointer("lindebug", ToggleLINDebugMode));
     AddCommand(CommandPointer("ptcpower", SetPTCPower));
-}
-
-void TickPTC()
-{
-    LIN.Tick();
-    Write_LIN_Data();
-    ExtractData();
 }
 
 void Write_LIN_Data()
@@ -136,4 +132,11 @@ void ExtractData()
         string str = "PTC| Curent: " + FloatToString(PTC_Current, 1) + "A, Voltage: " + ToString(PTC_Voltage) + " V, Temp: " + ToString(PTC_Temp) + "C";
         PrintSerialMessage(str);
     }
+}
+
+void TickPTC()
+{
+    LIN.Tick();
+    Write_LIN_Data();
+    ExtractData();
 }

@@ -1,33 +1,47 @@
 
 #include "HardwareSerial.h"
 #include "LIN_Manager.h"
-#include "LIN_master_HardwareSerial.h"
+#include "LIN_master_Base.h"
+#include "LIN_master_HardwareSerial_ESP32.h"
 #include "SerialPrint.h"
 
 #include <string>
 
 using namespace std;
 
-#define LIN_PAUSE 200 // pause [ms] between LIN frames
+// pause [ms] between LIN frames
+#define LIN_FRAME_PERIOD 200
 
-#define LIN_NETWORK_COUNT 1
+// LIN handler update period [us]
+#define LIN_HANDLER_PERIOD 300
 
-LIN_Master_HardwareSerial LIN_NETWORKS[LIN_NETWORK_COUNT] = {LIN_Master_HardwareSerial(Serial2, "Master")};
+LIN_Master_HardwareSerial_ESP32 LIN_SERIAL(Serial2, 16, 17, "Master");
 
-LIN_Manager::LIN_Manager(int linIndex)
+string StateToString(uint8_t stateID)
+{
+     switch(stateID)
+     {
+        default:
+            return "Unknown";
+        case  LIN_Master_Base::STATE_OFF: //!< LIN interface closed
+            return "Off";
+        case  LIN_Master_Base::STATE_IDLE: //!< no LIN transmission ongoing 
+            return "Idle";
+        case  LIN_Master_Base::STATE_BREAK: //!< sync break is being transmitted
+            return "Sync Break";
+        case  LIN_Master_Base::STATE_BODY: //!< rest of frame is being sent/received
+            return "Data Transmission";
+        case  LIN_Master_Base::STATE_DONE: //!< frame completed
+            return "Complete";
+     }
+}
+
+LIN_Manager::LIN_Manager(bool initialize)
 {
     LIN_NET = nullptr;
     debug = false;
 
-    if (linIndex >= LIN_NETWORK_COUNT)
-    {
-        string str = "Trying to start a LIN network with out of bounds index! {" + ToString(linIndex) + "/" +
-                     ToString(LIN_NETWORK_COUNT) + "}";
-        PrintSerialMessage(str);
-        return;
-    }
-
-    LIN_NET = &LIN_NETWORKS[linIndex];
+    LIN_NET = &LIN_SERIAL;
     LIN_NET->begin(19200);
 
     for (int i = 0; i < LIN_MESSAGE_COUNT; i++)
@@ -35,7 +49,7 @@ LIN_Manager::LIN_Manager(int linIndex)
         messages[i].Clear();
     }
 
-    counter = 0;
+    lastLINFrame = lastLINHandler = counter = 0;
 }
 
 void LIN_Manager::Tick()
@@ -43,12 +57,21 @@ void LIN_Manager::Tick()
     if (LIN_NET == nullptr)
         return;
 
-    LIN_NET->handler();
+    if (micros() - lastLINHandler > LIN_HANDLER_PERIOD)
+    {
+        lastLINHandler = micros();
+        LIN_NET->handler();
+    }
+
+    if(debug && previousState != LIN_NET->getState())
+    {
+        PrintSerialMessage("LIN state changed from " + StateToString(previousState) + " to " + StateToString(LIN_NET->getState()));
+        previousState = LIN_NET->getState();
+    }
 
     Read_LIN_Data();
 
-    static uint32_t lastLINFrame = 0;
-    if (millis() - lastLINFrame > LIN_PAUSE)
+    if (millis() - lastLINFrame > LIN_FRAME_PERIOD)
     {
         lastLINFrame = millis();
         Write_LIN_Data();
@@ -97,13 +120,19 @@ void LIN_Manager::Write_LIN_Data()
 
     if (msg.isReceiver)
     {
-        //PrintSerialMessage("LIN: Preparing to receive slave response ID: 0x" + IntToHex(msg.ID) + ", size:" + ToString(msg.dataSize));
+        if(debug)
+        {
+            PrintSerialMessage("LIN: Preparing to receive slave response ID: 0x" + IntToHex(msg.ID) + ", size:" + ToString(msg.dataSize));
+        }
         LIN_NET->receiveSlaveResponse(LIN_Master_Base::LIN_V2, msg.ID, msg.dataSize);
     }
     else
     {
-        /*PrintSerialMessage("LIN: Preparing to send master request ID: 0x" + IntToHex(msg.ID) +
-        ", size:" + ToString(msg.dataSize) + ", data: " + BytesToString(&msg.data[0], 8));*/
+        if(debug)
+        {
+            PrintSerialMessage("LIN: Preparing to send master request ID: 0x" + IntToHex(msg.ID) +
+        ", size:" + ToString(msg.dataSize) + ", data: " + BytesToString(&msg.data[0], 8));
+        }
         LIN_NET->sendMasterRequest(LIN_Master_Base::LIN_V2, msg.ID, msg.dataSize, msg.data);
     }
 }

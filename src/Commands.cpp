@@ -198,6 +198,12 @@ namespace commands
         VCU::ToggleDebugPP();
     }
 
+    void(* Reset) (void) = 0;
+    void CommandReset()
+    {
+        Reset();
+    }
+
     void InitializeCommands()
     {
         AddCommand(CommandPointer("status", OutputStatus));
@@ -216,5 +222,7 @@ namespace commands
         AddCommand(CommandPointer("testcontactor", SetContactor));
         AddCommand(CommandPointer("sendcan", SendCAN));
         AddCommand(CommandPointer("chargerpp", TogglePPDebug));
+        AddCommand(CommandPointer("reset", CommandReset));
     }
+
 }

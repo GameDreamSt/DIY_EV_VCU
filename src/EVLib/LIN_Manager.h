@@ -1,10 +1,9 @@
 
 #include <stdint.h>
 
-class HardwareSerial;
-class LIN_Master_HardwareSerial;
-
 #define LIN_MESSAGE_COUNT 8
+
+class LIN_Master_Base;
 
 struct LIN_Message
 {
@@ -35,12 +34,16 @@ struct LIN_Message
 class LIN_Manager
 {
     private:
-    LIN_Master_HardwareSerial* LIN_NET;
+    LIN_Master_Base* LIN_NET;
 
     LIN_Message messages[LIN_MESSAGE_COUNT];
 
     int counter;
     bool debug;
+
+    uint8_t previousState;
+    uint32_t lastLINHandler;
+    uint32_t lastLINFrame;
     
     void Read_LIN_Data();
     void Write_LIN_Data();
@@ -49,7 +52,7 @@ class LIN_Manager
 
     public:
     LIN_Manager() { LIN_NET = nullptr; }; 
-    LIN_Manager(int linIndex);
+    LIN_Manager(bool initialize);
     void Tick();
 
     void SetRequest(uint8_t ID, uint8_t dataSize, uint8_t data[8]);
