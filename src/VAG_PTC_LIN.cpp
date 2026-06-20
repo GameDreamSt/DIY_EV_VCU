@@ -1,10 +1,14 @@
 
 #include "VAG_PTC_LIN.h"
+#include "Pinout.h"
+#include "Throttle.h"
 #include "HardwareSerial.h"
-#include "EVLib/LIN_Manager.h"
 
+#include "EVLib/LIN_Manager.h"
 #include "EVLib/SerialPrint.h"
 #include "EVLib/SerialReader.h"
+#include "EVLib/MathUtils.h"
+#include "EVLib/Timer.h"
 
 #include <vector>
 #include <string>
@@ -12,6 +16,8 @@
 using namespace std;
 
 LIN_Manager LIN;
+Throttle heatInputSensor = Throttle(PIN_AC_CONTROL);
+Timer inputTimer = Timer(0.5f);
 
 enum LIN_Message_ID
 {
@@ -23,6 +29,16 @@ enum LIN_Message_ID
 bool LIN_Boot_Sent = false;
 int counter;
 int ptcPowerRequest = 0;
+bool inputSensorDebugMode;
+
+void TogglePTCInputDebug()
+{
+    inputSensorDebugMode = !inputSensorDebugMode;
+    if(inputSensorDebugMode)
+        PrintSerialMessage("Heating control is now in debug mode");
+    else
+        PrintSerialMessage("Heating control is now in silent mode");
+}
 
 void ToggleLINDebugMode()
 {
@@ -59,8 +75,11 @@ void InitializePTC()
 {
     LIN = LIN_Manager(0);
 
+    heatInputSensor.SetValuesManually(0, 1);
+    
     AddCommand(CommandPointer("lindebug", ToggleLINDebugMode));
     AddCommand(CommandPointer("ptcpower", SetPTCPower));
+    AddCommand(CommandPointer("heatinputdebug", TogglePTCInputDebug));
 }
 
 void Write_LIN_Data()
@@ -136,6 +155,23 @@ void ExtractData()
 
 void TickPTC()
 {
+    if(inputTimer.HasTriggered())
+    {
+        float sensorValue = heatInputSensor.GetRawValue();
+        float cooling = 1 - Min(sensorValue * 2, 1);
+        float heating = Max(sensorValue * 2 - 1, 0);
+
+        if(sensorValue < 0.05f || sensorValue > 0.95f) // not connected or invalid
+        {
+            heating = cooling = 0;
+        }
+
+        ptcPowerRequest = heating * 100;
+
+        if(inputSensorDebugMode)
+            PrintSerialMessage("Cooling: " + FloatToString(cooling, 2) + " | Heating: " + FloatToString(heating, 2) + " | PTC: " + ToString(ptcPowerRequest) + "%");
+    }
+
     LIN.Tick();
     Write_LIN_Data();
     ExtractData();

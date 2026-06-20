@@ -29,6 +29,8 @@ class Throttle
     std::string GetDebugValuesString();
     float GetRawValue();
 
+    void SetValuesManually(float min, float max);
+
     std::vector<unsigned char> Save();
     void Load(std::vector<unsigned char> data);
 };

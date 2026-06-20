@@ -20,6 +20,14 @@ Throttle::Throttle(int analogToDigitalPin)
     inputResolution = pow(2, ANALOG_RES);
 }
 
+void Throttle::SetValuesManually(float min, float max)
+{
+    lowestValue = min;
+    highestValue = max;
+    calibrationValue = max * 1.05f;
+    beingCalibrated = false;
+}
+
 float Throttle::ReadAnalog()
 {
     return (float)analogRead(analogPin) / inputResolution;
