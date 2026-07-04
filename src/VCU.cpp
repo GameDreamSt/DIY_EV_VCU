@@ -30,6 +30,8 @@ uint8_t *outFrame = new uint8_t[8];
 
 TimedFilter<bool> ignitionFilter = TimedFilter<bool>(100);
 TimedFilter<bool> driveModeFilter = TimedFilter<bool>(100);
+TimedFilter<bool> brakesFilter = TimedFilter<bool>(100);
+TimedFilter<bool> reverseFilter = TimedFilter<bool>(250);
 
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
@@ -55,6 +57,7 @@ uint16_t ThrotVal = 0; // analog value of throttle position.
 #define MAX_TORQUE 280 // Newton-meters
 int maxTorqueNm = 280;
 int torqueRequestOverrideNm = 0;
+float reverseModeTorqueMultiplier = 0.2f;
 
 void SetFinalTorqueRequest(int value)
 {
@@ -327,6 +330,8 @@ void Initialize()
 
     pinMode(PIN_IGNITION, INPUT_PULLUP);
     pinMode(PIN_DRIVE_MODE, INPUT_PULLUP);
+    pinMode(PIN_REVERSE, INPUT_PULLUP);
+    pinMode(PIN_BRAKES, INPUT_PULLUP);
 
     pinMode(PIN_PRECHARGE, OUTPUT);
     pinMode(PIN_NEG_CONTACTOR, OUTPUT);
@@ -422,8 +427,9 @@ void CheckDriveMode()
     }
 
     driveModeFilter.SetData(!digitalRead(PIN_DRIVE_MODE)); // PIN ON BY DEFAULT : INPUT_PULLUP
+    brakesFilter.SetData(!digitalRead(PIN_BRAKES));
 
-    if (ignitionOn && driveModeFilter.GetData())
+    if (ignitionOn && driveModeFilter.GetData() && brakesFilter.GetData()) // Must turn starter and press brakes to active drive
     {
         if (!driveMode)
             PrintSerialMessage("Drive mode on");
@@ -634,8 +640,10 @@ void ReadPedals()
     else if (driveMode)
     {
         auto inverterStats = LeafInverter::GetStats();
+        reverseFilter.SetData(!digitalRead(PIN_REVERSE));
+        bool reverseMode = reverseFilter.GetData();
 
-        if (normalizedThrottle < 0.01f && regenEnabled)
+        if (normalizedThrottle < 0.01f && regenEnabled && !reverseMode)
         {
             float normalizedRegen = (float)(inverterStats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
             normalizedRegen = Max(0, Min(1, normalizedRegen));
@@ -645,6 +653,8 @@ void ReadPedals()
         else
         {
             torqueRequestNm = maxTorqueNm * normalizedThrottle;
+            if(reverseMode)
+                torqueRequestNm *= reverseModeTorqueMultiplier;
             regenSmoothTorque = 0;
         }
     }
