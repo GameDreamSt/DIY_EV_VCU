@@ -100,6 +100,11 @@ void AddCommand(CommandPointer command)
     commandPointers.push_back(command);
 }
 
+void AddCommand(string commandName, cmdPtr funcPtr)
+{
+    commandPointers.push_back(CommandPointer(commandName, funcPtr));
+}
+
 void InitializeSerialReader()
 {
     commandPointers.push_back(CommandPointer("help", OutputHelp));

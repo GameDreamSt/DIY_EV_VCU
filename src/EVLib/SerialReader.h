@@ -20,5 +20,6 @@ struct CommandPointer
 void InitializeSerialReader();
 void TickSerialReader();
 void AddCommand(CommandPointer command);
+void AddCommand(std::string commandName, cmdPtr funcPtr);
 std::vector<std::string>* GetParameters();
 void ToLower(std::string &str);

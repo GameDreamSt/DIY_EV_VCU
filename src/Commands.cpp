@@ -13,69 +13,9 @@ using namespace std;
 
 namespace commands
 {
-    bool shouldOutputStatus;
-    void OutputStatus()
-    {
-        shouldOutputStatus = !shouldOutputStatus;
-    }
-
-    void PrintInverterStatus()
-    {
-        InverterStatus status = VCU::GetInverterStatus();
-        Stats stats = status.stats;
-
-        string str = "Inverter voltage: " + ToString(status.inverterVoltage) + " V " + 
-                    "\n" + stats.GetString() +
-                    "\nIs in error state: " + BoolToString(status.error_state);
-
-        PrintSerialMessage(str);
-    }
-
-    void PrintInverterMaxStats()
-    {
-        Stats stats = VCU::GetMaxRecordedStats();
-        string str = "Max recorded stats:\n" +
-                    stats.GetString();
-        PrintSerialMessage(str);
-    }
-
-    void ClearMaxStats()
-    {
-        VCU::ClearMaxRecordedStats();
-    }
-
     void PrintOBCStatus()
     {
         PrintSerialMessage(VCU::GetOBCStatus());
-    }
-
-    void SetTorque()
-    {
-        auto parameters = *GetParameters();
-        
-        if (parameters.size() == 0)
-        {
-            PrintSerialMessage("Not enough parameters!");
-            return;
-        }
-
-        short request = stoi(parameters[0]);
-        VCU::SetFinalTorqueRequest(request);
-    }
-
-    void SetMaxTorque()
-    {
-        auto parameters = *GetParameters();
-
-        if (parameters.size() == 0)
-        {
-            PrintSerialMessage("Not enough parameters!");
-            return;
-        }
-
-        short request = stoi(parameters[0]);
-        if(VCU::SetMaxTorqueRequest(request))
-            PrintSerialMessage("Torque set to " + ToString(request));
     }
 
     void SetRegenTorque()
@@ -128,14 +68,6 @@ namespace commands
     void PrintVacuumSensorData()
     {
         printVacuumSensorData = !printVacuumSensorData;
-    }
-
-    void ToggleGen2()
-    {
-        if (VCU::ToggleGen2Codes())
-            PrintSerialMessage("Gen 2 CAN codes selected");
-        else
-            PrintSerialMessage("Gen 1 CAN codes selected");
     }
 
     void SetContactor()
@@ -206,19 +138,13 @@ namespace commands
 
     void InitializeCommands()
     {
-        AddCommand(CommandPointer("status", OutputStatus));
-        AddCommand(CommandPointer("maxstats", PrintInverterMaxStats));
-        AddCommand(CommandPointer("clearmaxstats", ClearMaxStats));
         AddCommand(CommandPointer("obcstatus", PrintOBCStatus));
         AddCommand(CommandPointer("printcan", PrintCan));
-        AddCommand(CommandPointer("torque", SetTorque));
-        AddCommand(CommandPointer("maxtorque", SetMaxTorque));
         AddCommand(CommandPointer("regentorque", SetRegenTorque));
         AddCommand(CommandPointer("regenrpm", SetMinMaxRegenRPMRange));
         AddCommand(CommandPointer("throttleout", GetThrottle));
         AddCommand(CommandPointer("throttleoutdetailed", GetThrottleDetailed));
         AddCommand(CommandPointer("vacuum", PrintVacuumSensorData));
-        AddCommand(CommandPointer("togglegen2", ToggleGen2));
         AddCommand(CommandPointer("testcontactor", SetContactor));
         AddCommand(CommandPointer("sendcan", SendCAN));
         AddCommand(CommandPointer("chargerpp", TogglePPDebug));

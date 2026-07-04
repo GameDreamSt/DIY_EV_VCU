@@ -4,57 +4,27 @@
 
 class Throttle;
 
-struct Stats
-{
-    short rpm = 0;
-    short motorTorque = 0;
-    float motorPower = 0;
-
-    float inverter_temperature = 0;
-    float motor_temperature = 0;
-
-    std::string GetString();
-};
-
-struct InverterStatus
-{
-    unsigned short inverterVoltage = 0;
-    float batteryVoltage = 0;
-
-    Stats stats;
-
-    bool error_state = false;
-};
-
 namespace VCU
 {
-void Initialize();
-void Tick();
+    void Initialize();
+    void Tick();
 
-InverterStatus GetInverterStatus();
-Stats GetMaxRecordedStats();
-void ClearMaxRecordedStats();
-std::string GetOBCStatus();
+    std::string GetOBCStatus();
+    bool WantsToCharge();
 
-void ToggleDebugPP();
+    void ToggleDebugPP();
 
-void SetFinalTorqueRequest(short value);
-bool SetMaxTorqueRequest(short value);
+    void ToggleThrottlePrint();
+    void ToggleThrottlePrintDetailed();
 
-bool SetRegenTorque(short value);
-bool SetRegenRPMRange(short lowRPM, short highRPM);
+    bool SetRegenTorque(short value);
+    bool SetRegenRPMRange(short lowRPM, short highRPM);
 
-void SetBatteryDischargeLimit(float kilowatts);
-void ToggleThrottlePrint();
-void ToggleThrottlePrintDetailed();
-Throttle* GetVacuumSensor();
+    Throttle* GetVacuumSensor();
 
-void SendCustomCanMessage(unsigned int ID, unsigned char data[8]);
+    void SendCustomCanMessage(unsigned int ID, unsigned char data[8]);
 
-bool ToggleGen2Codes();
-bool TogglePDMCAN();
+    bool IsIgnitionOn();
 
-bool IsIgnitionOn();
-
-void SetContactorForTesting(int value);
+    void SetContactorForTesting(int value);
 } // namespace VCU

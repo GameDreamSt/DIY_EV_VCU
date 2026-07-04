@@ -2,41 +2,29 @@
 #include "VCU.h"
 
 #include "EVLib/CAN.h"
-#include "Contactor.h"
-#include "EVLib/Filter.h"
-#include "EVLib/SerialPrint.h"
-#include "Throttle.h"
 #include "EVLib/Timer.h"
+#include "EVLib/Filter.h"
 #include "EVLib/EVTime.h"
-#include "mcp2515.h"
-#include "OutlanderOBC.h"
 #include "EVLib/MathUtils.h"
+#include "EVLib/SerialPrint.h"
+#include "EVLib/SerialReader.h"
+
+#include "mcp2515.h"
+#include "Throttle.h"
+#include "Contactor.h"
+#include "OutlanderOBC.h"
+#include "LeafInverter.h"
 
 #include <cstring>
 #include <Arduino.h>
 
 using namespace std;
 
-string Stats::GetString()
-{
-    return "RPM: " + ToString(rpm) + "\nMotor torque: " + ToString(motorTorque) + " nm" +
-           "\nMotor power: " + FloatToString(motorPower, 1) + " kw" +
-           "\nInverter temperature: " + FloatToString(inverter_temperature, 2) + " C " +
-           "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
-}
-
 namespace VCU
 {
-#ifndef byte
-#define byte unsigned char
-#endif
-
-#ifndef ushort
-#define ushort unsigned short
-#endif
 
 CAN *can = nullptr;
-byte *outFrame = new byte[8];
+uint8_t *outFrame = new uint8_t[8];
 
 #define HVTimerTime 0.2f
 
@@ -45,7 +33,6 @@ TimedFilter<bool> driveModeFilter = TimedFilter<bool>(100);
 
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
-Timer timer_response_50MS = Timer(0.05f);
 Timer TimerHV = Timer(HVTimerTime);
 Timer failureTimer = Timer(3);
 Timer throttlePrintTimer = Timer(0.1f);
@@ -63,24 +50,24 @@ Throttle* GetVacuumSensor() { return &vacuumSensor; }
 #define MAX_CHARGE_VOLTAGE 240
 #define MAX_CHARGE_CURRENT 12 // limited by OBC
 
-ushort ThrotVal = 0; // analog value of throttle position.
+uint16_t ThrotVal = 0; // analog value of throttle position.
 
-#define MAX_TORQUE 1120 // Max torque request is 1120
-short MaxTorque = 1120;
-short final_torque_request = 0;
-short torqueRequestOverride = 0;
-void SetFinalTorqueRequest(short value)
+#define MAX_TORQUE 280 // Newton-meters
+int maxTorqueNm = 280;
+int torqueRequestOverrideNm = 0;
+
+void SetFinalTorqueRequest(int value)
 {
-    if (abs(value) > MaxTorque)
+    if (abs(value) > maxTorqueNm)
     {
-        torqueRequestOverride = 0;
-        PrintSerialMessage("Torque requested is above Max torque of " + ToString(MaxTorque) + "!");
+        torqueRequestOverrideNm = 0;
+        PrintSerialMessage("Torque requested is above Max torque of " + ToString(maxTorqueNm) + "!");
     }
     else
-        torqueRequestOverride = value;
+        torqueRequestOverrideNm = value;
 }
 
-bool SetMaxTorqueRequest(short value)
+bool SetMaxTorqueRequest(int value)
 {
     if (value < 0)
     {
@@ -94,8 +81,37 @@ bool SetMaxTorqueRequest(short value)
         return false;
     }
 
-    MaxTorque = value;
+    maxTorqueNm = value;
     return true;
+}
+
+void SetTorque()
+{
+    auto parameters = *GetParameters();
+    
+    if (parameters.size() == 0)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    short request = stoi(parameters[0]);
+    SetFinalTorqueRequest(request);
+}
+
+void SetMaxTorque()
+{
+    auto parameters = *GetParameters();
+
+    if (parameters.size() == 0)
+    {
+        PrintSerialMessage("Not enough parameters!");
+        return;
+    }
+
+    short request = stoi(parameters[0]);
+    if(SetMaxTorqueRequest(request))
+        PrintSerialMessage("Torque set to " + ToString(request));
 }
 
 bool regenEnabled = true;
@@ -147,29 +163,6 @@ bool ignitionOn;
 bool driveMode;
 
 bool can_status;
-
-bool gen2Codes = true;
-bool ToggleGen2Codes()
-{
-    gen2Codes = !gen2Codes;
-    return gen2Codes;
-}
-
-InverterStatus inverterStatus;
-InverterStatus GetInverterStatus()
-{
-    return inverterStatus;
-}
-
-Stats maxStats;
-Stats GetMaxRecordedStats()
-{
-    return maxStats;
-}
-void ClearMaxRecordedStats()
-{
-    maxStats = Stats();
-}
 
 string GetOBCStatus()
 {
@@ -243,43 +236,8 @@ void SendCustomCanMessage(unsigned int ID, unsigned char data[8])
     can->Transmit(ID, 8, data);
 }
 
-struct DummyQueryResponse
-{
-    unsigned int queryID;
-    unsigned int responseID;
-    byte responseData[8];
-    bool needsToRespond;
-
-    DummyQueryResponse(){}
-    DummyQueryResponse(unsigned int qID, unsigned int rID)
-    {
-        queryID = qID;
-        responseID = rID;
-    }
-    DummyQueryResponse(unsigned int qID, unsigned int rID, byte rData[8])
-    {
-        queryID = qID;
-        responseID = rID;
-        memcpy(&responseData, &rData, 8);
-    }
-    DummyQueryResponse(unsigned int qID, unsigned int rID, unsigned long long rData)
-    {
-        queryID = qID;
-        responseID = rID;
-        memcpy(&responseData, &rData, 8);
-    }
-};
-std::vector<DummyQueryResponse> dummyQueries;
-
 enum MsgID
 {
-    // Inverter IDs
-    CmdHeartBeat = 0x50B,
-    CmdGearSelection = 0x11A,
-    CmdTorque = 0x1D4,
-    RcvInverterState = 0x1DA,
-    RcvTempF = 0x55A,
-
     // BMS
     RcvPowerLimits = 0x1DC, // From BMS, but for now, spoof it
     RcvBatteryState = 0x1DB, // Also for PDM from BMS, but for now, spoof it
@@ -292,11 +250,6 @@ bool IsCanIDValid(int ID)
 {
     switch (ID)
     {
-    case 0x50B:
-    case 0x11A:
-    case 0x1D4:
-    case 0x1DA:
-    case 0x55A:
     case 0x1DC:
     case 0x1DB:
     case 0x55B:
@@ -308,33 +261,12 @@ bool IsCanIDValid(int ID)
     return false;
 }
 
-void NissanCRC(byte *data)
+uint16_t Checksum(uint8_t *data)
 {
-    byte polynomial = 0x85;
-
-    // We want to process 8 bytes with the 8th byte being zero
-    data[7] = 0;
-    byte crc = 0;
-    for (int b = 0; b < 8; b++)
-    {
-        for (int i = 7; i >= 0; i--)
-        {
-            byte bit = ((data[b] & (1 << i)) > 0) ? 1 : 0;
-            if (crc >= 0x80)
-                crc = (byte)(((crc << 1) + bit) ^ polynomial);
-            else
-                crc = (byte)((crc << 1) + bit);
-        }
-    }
-    data[7] = crc;
-}
-
-ushort Checksum(byte *data)
-{
-    ushort checksum = 0;
+    uint16_t checksum = 0;
     for (int b = 0; b < 7; b++) // 7 CAN data bytes
     {
-        byte wholeByte = data[b];
+        uint8_t wholeByte = data[b];
         checksum += wholeByte >> 4;   // XXXX XXXX -> 0000 XXXX
         checksum += wholeByte & 0x0F; // XXXX XXXX & 0000 AAAA -> 0000 XXXX
     }
@@ -342,7 +274,7 @@ ushort Checksum(byte *data)
     return checksum;
 }
 
-void CAN_ChecksumNibble(byte *data, byte add, byte mask)
+void CAN_ChecksumNibble(uint8_t *data, uint8_t add, uint8_t mask)
 {
     data[7] = (Checksum(data) + add) & mask;
 }
@@ -417,20 +349,10 @@ void Initialize()
     analogSetPinAttenuation(APIN_Throttle1, ADC_6db);
     analogSetPinAttenuation(APIN_Throttle2, ADC_2_5db);
 
-    dummyQueries.push_back(DummyQueryResponse(0x797, 0x79A, 0x04621103A3000000)); // 12V battery, [5]A3 = 13.04V / 0.08
-    dummyQueries.push_back(DummyQueryResponse(0x745, 0x765)); // BCM body control module
-    dummyQueries.push_back(DummyQueryResponse(0x740, 0x760)); // ABS
-    dummyQueries.push_back(DummyQueryResponse(0x79B, 0x7BB)); // BMS/LBC
-    dummyQueries.push_back(DummyQueryResponse(0x743, 0x763)); // M&A (Meter)
-    dummyQueries.push_back(DummyQueryResponse(0x744, 0x764)); // HVAC
-    dummyQueries.push_back(DummyQueryResponse(0x70E, 0x70F)); // Brake
-    dummyQueries.push_back(DummyQueryResponse(0x73F, 0x761)); // VSP Vehicle Sound for Pedestrians
-    dummyQueries.push_back(DummyQueryResponse(0x742, 0x762)); // EPS Electric Power Steering system
-    dummyQueries.push_back(DummyQueryResponse(0x746, 0x783)); // TCU Telematics control unit
-    dummyQueries.push_back(DummyQueryResponse(0x747, 0x767)); // Multi AV
-    dummyQueries.push_back(DummyQueryResponse(0x74D, 0x76D)); // IPDM E/R
-    dummyQueries.push_back(DummyQueryResponse(0x752, 0x772)); // Airbag
-    dummyQueries.push_back(DummyQueryResponse(0x79D, 0x7BD)); // Shift
+    AddCommand("torque", SetTorque);
+    AddCommand("maxtorque", SetMaxTorque);
+
+    LeafInverter::Initialize();
 }
 
 float prechargeToFailureTime = 0;
@@ -462,8 +384,7 @@ void ClearHVData()
 {
     lastInverterVoltageTime = lastInverterVoltage = prechargeToFailureTime = 0;
     vacuumPumpFailure = prechargeFailure = prechargeComplete = false;
-    inverterStatus.inverterVoltage = 0;
-    inverterStatus.error_state = false;
+    LeafInverter::ClearStats();
 }
 
 bool IsIgnitionOn()
@@ -516,6 +437,11 @@ void CheckDriveMode()
     }
 }
 
+int GetMotorVoltage()
+{
+    return LeafInverter::GetStats().inverterVoltage;
+}
+
 void HighVoltageControl()
 {
     if (!ignitionOn || prechargeFailure) // || inverterStatus.batteryVoltage < LOWEST_VOLTAGE
@@ -536,11 +462,12 @@ void HighVoltageControl()
         return;
     }
 
-    // float voltageDifference = abs(inverterStatus.inverterVoltage - inverterStatus.batteryVoltage);
+    // float voltageDifference = abs(motorVoltage - inverterStatus.batteryVoltage);
 
-    if (abs(inverterStatus.inverterVoltage - lastInverterVoltage) > 5)
+    int motorVoltage = GetMotorVoltage();
+    if (abs(motorVoltage - lastInverterVoltage) > 5)
     {
-        lastInverterVoltage = inverterStatus.inverterVoltage;
+        lastInverterVoltage = motorVoltage;
         lastInverterVoltageTime = 0;
     }
 
@@ -585,7 +512,8 @@ void HVChargeControl()
         return;
     }
 
-    bool canCharge = prechargeComplete && inverterStatus.inverterVoltage < MAX_CHARGE_VOLTAGE && GetOBCData()->MaxTemperature() < 60;
+    int motorVoltage = GetMotorVoltage();
+    bool canCharge = prechargeComplete && motorVoltage < MAX_CHARGE_VOLTAGE && GetOBCData()->MaxTemperature() < 60;
 
     CmdChargeStatus chargeStatus = ChargerStatusPlugInserted() ? (canCharge ? CmdChargeStatus::Charge : CmdChargeStatus::Connect) : CmdChargeStatus::Off;
 
@@ -594,7 +522,7 @@ void HVChargeControl()
     /*short maxMinVoltDifference = MAX_CHARGE_VOLTAGE - LOWEST_VOLTAGE;
     short slowChargeThreshold = LOWEST_VOLTAGE + maxMinVoltDifference * 0.8;
 
-    if(inverterStatus.inverterVoltage > slowChargeThreshold)
+    if(motorVoltage > slowChargeThreshold)
         chargeCurrent *= 0.5;*/
 
     SetChargeStatus(chargeStatus, MAX_CHARGE_VOLTAGE, chargeCurrent);
@@ -643,9 +571,10 @@ bool ShouldTurnOnPump() // Not sure if it's ok to wait for temperatures to rise 
     if(driveMode)
         return true;
 
-    if(inverterStatus.stats.inverter_temperature > 30)
+    auto inverterStats = LeafInverter::GetStats();
+    if(inverterStats.inverter_temperature > 30)
         return true;
-    if(inverterStatus.stats.motor_temperature > 30)
+    if(inverterStats.motor_temperature > 30)
         return true;
     if(GetOBCData()->MaxTemperature() > 30)
         return true;
@@ -662,243 +591,12 @@ void TemperatureControl()
         SetContactor(PIN_WATER_PUMP, ShouldTurnOnPump());
 }
 
-void SendHeartBeat()
-{
-    // Statistics from 2016 capture:
-    //     10 00000000000000
-    //     21 000002c0000000
-    //    122 000000c0000000
-    //    513 000006c0000000
-
-    outFrame[0] = 0x00;
-    outFrame[1] = 0x00;
-    outFrame[2] = 0x06;
-    outFrame[3] = 0xc0;
-    outFrame[4] = 0x00;
-    outFrame[5] = 0x00;
-    outFrame[6] = 0x00;
-
-    can->Transmit((int)MsgID::CmdHeartBeat, 7, outFrame);
-}
-
 void Msgs10ms()
 {
     if (!can_status)
         return;
 
-    static byte counter_11a_d6 = 0;
-    static byte counter_1d4 = 0;
-    static byte counter_1db = 0;
-
-    // Send VCM gear selection signal (gets rid of P3197)
-    // Data taken from a gen1 inFrame where the car is starting to
-    // move at about 10% throttle: 4E400055 0000017D
-
-    // All possible gen1 values: 00 01 0D 11 1D 2D 2E 3D 3E 4D 4E
-    // MSB nibble: Selected gear (gen1/LeafLogs)
-    //   0: some kind of non-gear before driving
-    //   1: some kind of non-gear after driving
-    //   2: R
-    //   3: N
-    //   4: D
-    // LSB nibble: ? (LeafLogs)
-    //   0: sometimes at startup, not always; never when the
-    //      inverted is powered on (0.06%)
-    //   1: this is the usual value (55% of the time in LeafLogs)
-    //   D: seems to occur for ~90ms when changing gears (0.2%)
-    //   E: this also is a usual value, but never occurs with the
-    //      non-gears 0 and 1 (44% of the time in LeafLogs)
-
-    outFrame[0] = WantsToCharge() ? 0x01 : 0x4E;
-    // 0x40 when car is ON, 0x80 when OFF, 0x50 when ECO
-    outFrame[1] = WantsToCharge() ? 0x80 : 0x40;
-
-    // Usually 0x00, sometimes 0x80 (LeafLogs), 0x04 seen by canmsgs
-    outFrame[2] = 0x00;
-
-    // Weird value at D3:4 that goes along with the counter
-    // NOTE: Not actually needed, you can just send constant AA C0
-    const static byte weird_d34_values[4][2] = {
-        {0xaa, 0xc0},
-        {0x55, 0x00},
-        {0x55, 0x40},
-        {0xaa, 0x80},
-    };
-    outFrame[3] = weird_d34_values[counter_11a_d6][0];
-    outFrame[4] = weird_d34_values[counter_11a_d6][1];
-
-    // Always 0x00 (LeafLogs, canmsgs)
-    outFrame[5] = 0x00;
-
-    // A 2-bit counter
-    outFrame[6] = counter_11a_d6;
-
-    counter_11a_d6++;
-    if (counter_11a_d6 >= 4)
-        counter_11a_d6 = 0;
-
-    // Extra CRC
-    NissanCRC(outFrame);
-
-    can->Transmit(MsgID::CmdGearSelection, 8, outFrame);
-
-    // Send target motor torque signal
-    // Data taken from a gen1 inFrame where the car is starting to
-    // move at about 10% throttle: F70700E0C74430D4
-
-    // Usually F7, but can have values between 9A...F7 (gen1); 2016: 6E
-    outFrame[0] = gen2Codes ? 0x6E : 0xF7;
-    // Usually 07, but can have values between 07...70 (gen1); 2016: 6E
-    outFrame[1] = gen2Codes ? 0x6E : 0x07;
-
-    // Requested torque (signed 12-bit value + always 0x0 in low nibble)
-    if (final_torque_request >= -2048 && final_torque_request <= 2047)
-    {
-        outFrame[2] = ((final_torque_request < 0) ? 0x80 : 0) | ((final_torque_request >> 4) & 0x7f);
-        outFrame[3] = (final_torque_request << 4) & 0xf0;
-    }
-    else
-    {
-        outFrame[2] = 0x00;
-        outFrame[3] = 0x00;
-    }
-
-    // MSB nibble: Runs through the sequence 0, 4, 8, C
-    // LSB nibble: Precharge report (precedes actual precharge
-    //             control)
-    //   0: Discharging (5%)
-    //   2: Precharge not started (1.4%)
-    //   3: Precharging (0.4%)
-    //   5: Starting discharge (3x10ms) (2.0%)
-    //   7: Precharged (93%)
-    outFrame[4] = 0x07 | (counter_1d4 << 6);
-
-    counter_1d4++;
-    if (counter_1d4 >= 4)
-        counter_1d4 = 0;
-
-    // MSB nibble:
-    //   0: 35-40ms at startup when gear is 0, then at shutdown 40ms
-    //      after the car has been shut off (6% total)
-    //   4: Otherwise (94%)
-    // LSB nibble:
-    //   0: ~100ms when changing gear, along with 11A D0 b3:0 value
-    //      D (0.3%)
-    //   2: Reverse gear related (13%)
-    //   4: Forward gear related (21%)
-    //   6: Occurs always when gear 11A D0 is 01 or 11 (66%)
-    // outFrame[5] = 0x44;
-    // outFrame[5] = 0x46;
-
-    // 2016 drive cycle: 06, 46, precharge, 44, drive, 46, discharge, 06
-    // 0x46 requires ~25 torque to start
-    // outFrame[5] = 0x46;
-    // 0x44 requires ~8 torque to start
-    outFrame[5] = 0x44;
-
-    // MSB nibble:
-    //   In a drive cycle, this slowly changes between values (gen1):
-    //     leaf_on_off.txt:
-    //       5 7 3 2 0 1 3 7
-    //     leaf_on_rev_off.txt:
-    //       5 7 3 2 0 6
-    //     leaf_on_Dx3.txt:
-    //       5 7 3 2 0 2 3 2 0 2 3 2 0 2 3 7
-    //     leaf_on_stat_DRDRDR.txt:
-    //       0 1 3 7
-    //     leaf_on_Driveincircle_off.txt:
-    //       5 3 2 0 8 B 3 2 0 8 A B 3 2 0 8 A B A 8 0 2 3 7
-    //     leaf_on_wotind_off.txt:
-    //       3 2 0 8 A B 3 7
-    //     leaf_on_wotinr_off.txt:
-    //       5 7 3 2 0 8 A B 3 7
-    //     leaf_ac_charge.txt:
-    //       4 6 E 6
-    //   Possibly some kind of control flags, try to figure out
-    //   using:
-    //     grep 000001D4 leaf_on_wotind_off.txt | cut -d' ' -f10 | uniq |
-    //     ~/projects/leaf_tools/util/hex_to_ascii_binary.py
-    //   2016:
-    //     Has different values!
-    // LSB nibble:
-    //   0: Always (gen1)
-    //   1:  (2016)
-
-    // 2016 drive cycle:
-    //   E0: to 0.15s
-    //   E1: 2 messages
-    //   61: to 2.06s (inverter is powered up and precharge
-    //                 starts and completes during this)
-    //   21: to 13.9s
-    //   01: to 17.9s
-    //   81: to 19.5s
-    //   A1: to 26.8s
-    //   21: to 31.0s
-    //   01: to 33.9s
-    //   81: to 48.8s
-    //   A1: to 53.0s
-    //   21: to 55.5s
-    //   61: 2 messages
-    //   60: to 55.9s
-    //   E0: to end of capture (discharge starts during this)
-
-    // 0x1d4 byte 6 seems to have an active role.
-    // 0x00 when in park and brake released.
-    // 0x20 when brake lightly pressed in park.
-    // 0x30 when brake heavilly pressed in park.
-    // 0xE0 when charging
-
-    // Value chosen from a 2016 log
-    // outFrame[6] = 0x61;
-
-    // Value chosen from a 2016 log
-    // 2016-24kWh-ev-on-drive-park-off.pcap #12101 / 15.63s
-    // outFrame[6] = 0x01;
-    // byte 6 brake signal
-    outFrame[6] = WantsToCharge() ? 0xE0 : (gen2Codes ? 0x01 : 0x30);
-
-    // Extra CRC
-    NissanCRC(outFrame);
-
-    can->Transmit(MsgID::CmdTorque, 8, outFrame);
-
-
-    // We need to send 0x1db here with voltage measured by inverter
-    int TMP_battI = inverterStatus.stats.motorPower * 2000.0f /
-                      (float)inverterStatus.inverterVoltage; //(Param::Get(Param::idc)) * 2;
-    short TMP_battV = inverterStatus.inverterVoltage * 4;    //(Param::Get(Param::udc)) * 4;
-
-    outFrame[0] = TMP_battI >> 3;   // MSB current. 11 bit signed MSBit first
-    outFrame[1] = (TMP_battI & 0x07) << 5; // LSB current bits 7-5. Dont need to mess with bits 0-4 for now as 0 works.
-    outFrame[2] = TMP_battV >> 2;
-    outFrame[3] = ((TMP_battV & 0x07) << 6) | 0x2b; // 0x2b should give no cut req, main rly on permission,normal p limit.
-    outFrame[4] = 0x40;                          // SOC for dash in Leaf. fixed val.
-    outFrame[5] = 0x00;
-    outFrame[6] = counter_1db;
-
-    counter_1db++;
-    if (counter_1db >= 4)
-        counter_1db = 0;
-
-    NissanCRC(outFrame);
-    can->Transmit(MsgID::RcvBatteryState, 8, outFrame);
-
     OBCMsgs10Ms(can);
-}
-
-bool OBDDataPending;
-void MsgsOBD()
-{
-    OBDDataPending = false;
-    
-    for(int i = 0; i < dummyQueries.size(); i++)
-    {
-        if(!dummyQueries[i].needsToRespond)
-            continue;
-
-        dummyQueries[i].needsToRespond = false;
-        can->Transmit(dummyQueries[i].responseID, 8, (uint8_t*)&dummyQueries[i].responseData);
-    }
 }
 
 void Msgs100ms()
@@ -906,7 +604,7 @@ void Msgs100ms()
     if (!can_status)
         return;
 
-    SendHeartBeat();
+    LeafInverter::Msgs100ms(can);
     OBCMsgs100Ms(can);
 }
 
@@ -925,34 +623,33 @@ void ToggleThrottlePrintDetailed()
 void ReadPedals()
 {
     float normalizedThrottle = throttleManager.GetNormalizedThrottle();
-    final_torque_request = 0;
+    int torqueRequestNm = 0;
+    LeafInverter::SetTorqueNm(0); // Reset
 
-    if (torqueRequestOverride != 0)
-        final_torque_request = torqueRequestOverride;
-    else if (driveMode && prechargeComplete)
+    if(!prechargeComplete)
+        return;
+
+    if (torqueRequestOverrideNm != 0)
+        torqueRequestNm = torqueRequestOverrideNm;
+    else if (driveMode)
     {
+        auto inverterStats = LeafInverter::GetStats();
+
         if (normalizedThrottle < 0.01f && regenEnabled)
         {
-            float normalizedRegen =
-                (float)(inverterStatus.stats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
+            float normalizedRegen = (float)(inverterStats.rpm - minRegenRPM) / (float)(maxRegenRPM - minRegenRPM);
             normalizedRegen = Max(0, Min(1, normalizedRegen));
-            final_torque_request = -regenSmoothTorque * normalizedRegen;
+            torqueRequestNm = -regenSmoothTorque * normalizedRegen;
             regenSmoothTorque = Max(0, Min(regenSmoothTorque + regenTorque * deltaTime / regenSmoothTorqueTime, regenTorque));
         }
         else
         {
-            final_torque_request = MaxTorque * normalizedThrottle;
+            torqueRequestNm = maxTorqueNm * normalizedThrottle;
             regenSmoothTorque = 0;
         }
     }
-}
 
-static float FahrenheitToCelsius(unsigned char fahrenheitRawValue)
-{
-    float temperature = (float)fahrenheitRawValue;
-    temperature -= 32;
-    temperature *= 0.555555f;
-    return temperature;
+    LeafInverter::SetTorqueNm(torqueRequestNm);
 }
 
 can_frame recvFrame;
@@ -961,23 +658,16 @@ void ReadCAN()
     if (can == nullptr || !can->GetCanData(recvFrame))
         return;
 
-    byte inFrame[8];
+    uint8_t inFrame[8];
     memcpy(&inFrame, recvFrame.data, Min(recvFrame.can_dlc, 8));
 
     if (!IsCanIDValid(recvFrame.can_id))
     {
-        if(OBCHandleCAN(recvFrame.can_id, recvFrame.can_dlc, inFrame))
+        if(LeafInverter::HandleCAN(recvFrame.can_id, recvFrame.can_dlc, inFrame))
             return;
 
-        for(int i = 0; i < dummyQueries.size(); i++)
-        {
-            if(dummyQueries[i].queryID == recvFrame.can_id)
-            {
-                OBDDataPending = true;
-                dummyQueries[i].needsToRespond = true;
-                return;
-            }
-        }
+        if(OBCHandleCAN(recvFrame.can_id, recvFrame.can_dlc, inFrame))
+            return;
 
         PrintSerialMessage("Unknown CAN message ID: 0x" + IntToHex(recvFrame.can_id) +
                            " Bytes: " + BytesToString(recvFrame.data, recvFrame.can_dlc));
@@ -986,61 +676,11 @@ void ReadCAN()
 
     MsgID messageType = (MsgID)recvFrame.can_id;
 
-    // Check data length
-    switch (messageType)
-    {
-    case MsgID::RcvInverterState:
-    case MsgID::RcvTempF:
-        if (recvFrame.can_dlc != 8)
-        {
-            PrintSerialMessage("Invalid CAN data length for " + IntToHex(recvFrame.can_id) + ". Expected 8, got: ",
-                               recvFrame.can_dlc);
-            return;
-        }
-        break;
-
-    default:
-        PrintSerialMessageHEX("Received my own command?? ID: ", recvFrame.can_id);
-        return;
-    }
-
-    short torque, rpm;
-    byte plugVoltageMode;
-
     // Handle CAN message
     switch (messageType)
     {
-    case MsgID::RcvInverterState:
-        inverterStatus.inverterVoltage = (((ushort)inFrame[0] << 2) | (((ushort)inFrame[1]) >> 6)) / 2;
-
-        torque = (short)((inFrame[2] & 0x07) << 8 | inFrame[3]);
-        if ((inFrame[2] & 0x04) == 0x04) // indicates negative value
-            torque = torque | 0xf800;    // pad leading 1s for 2s complement signed
-        inverterStatus.stats.motorTorque = torque / 2;
-        maxStats.motorTorque = Max(maxStats.motorTorque, inverterStatus.stats.motorTorque);
-
-        rpm = (short)(inFrame[4] << 8 | inFrame[5]);
-        if ((inFrame[4] & 0x40) == 0x40) // indicates negative value
-            rpm = rpm | 0x8000;          // pad leading 1s for 2s complement signed
-        inverterStatus.stats.rpm = rpm / 2;
-        maxStats.rpm = Max(maxStats.rpm, inverterStatus.stats.rpm);
-
-        // torque (Nm) to power (W) = 2 x pi / 60 * rpm * torque
-        inverterStatus.stats.motorPower = rpm * torque / 9548.8f;
-        maxStats.motorPower = Max(maxStats.motorPower, inverterStatus.stats.motorPower);
-
-        inverterStatus.error_state = (inFrame[6] & 0xb0) != 0x00;
-        break;
-
-    case MsgID::RcvTempF:
-        inverterStatus.stats.motor_temperature = FahrenheitToCelsius(inFrame[1]);
-        inverterStatus.stats.inverter_temperature = FahrenheitToCelsius(inFrame[2]);
-        maxStats.motor_temperature = Max(maxStats.motor_temperature, inverterStatus.stats.motor_temperature);
-        maxStats.inverter_temperature = Max(maxStats.inverter_temperature, inverterStatus.stats.inverter_temperature);
-        break;
-
-    default:
-        break;
+        default:
+            break;
     }
 }
 
@@ -1134,8 +774,6 @@ void Tick()
         Msgs10ms();
     if (timer_Frames100.HasTriggered())
         Msgs100ms();
-    if (OBDDataPending && timer_response_50MS.HasTriggered())
-        MsgsOBD();
 
     PrintFailures();
     PrintDebug();
