@@ -17,6 +17,8 @@ namespace VCU
     void ToggleThrottlePrint();
     void ToggleThrottlePrintDetailed();
 
+    void ToggleVacuumSensorDebug();
+
     bool SetRegenTorque(short value);
     bool SetRegenRPMRange(short lowRPM, short highRPM);
 

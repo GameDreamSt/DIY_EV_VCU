@@ -64,10 +64,9 @@ namespace commands
         VCU::ToggleThrottlePrintDetailed();
     }
 
-    bool printVacuumSensorData;
     void PrintVacuumSensorData()
     {
-        printVacuumSensorData = !printVacuumSensorData;
+        VCU::ToggleVacuumSensorDebug();
     }
 
     void SetContactor()

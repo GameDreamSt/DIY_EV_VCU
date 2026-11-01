@@ -14,6 +14,7 @@ class Throttle
     float currentThrottle;
 
     bool beingCalibrated;
+    bool dontReset;
 
     float ReadAnalog();
     float GetAverageAnalog();

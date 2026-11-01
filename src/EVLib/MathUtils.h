@@ -8,11 +8,11 @@
 #endif
 
 #ifndef Clamp
-#define Clamp(x, a, b) Max(a, Min(b, x))
+#define Clamp(x, a, b) (Max(a, Min(b, x)))
 #endif
 
 #ifndef Saturate
-#define Saturate(a) Max(0, Min(1, x))
+#define Saturate(a) (Max(0, Min(1, x)))
 #endif
 
 #ifndef FloatAbout

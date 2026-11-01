@@ -148,8 +148,11 @@ void ExtractData()
         PTC_Voltage = msg.data[1] * 2;
         PTC_Temp = msg.data[5] * 0.25f + 2;
 
-        string str = "PTC| Curent: " + FloatToString(PTC_Current, 1) + "A, Voltage: " + ToString(PTC_Voltage) + " V, Temp: " + ToString(PTC_Temp) + "C";
-        PrintSerialMessage(str);
+        if(inputSensorDebugMode)
+        {
+            string str = "PTC| Curent: " + FloatToString(PTC_Current, 1) + "A, Voltage: " + ToString(PTC_Voltage) + " V, Temp: " + ToString(PTC_Temp) + "C";
+            PrintSerialMessage(str);
+        }
     }
 }
 

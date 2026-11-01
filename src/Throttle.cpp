@@ -3,6 +3,7 @@
 #include "EVLib/SerialPrint.h"
 #include "Throttle.h"
 #include "EVLib/Timer.h"
+#include "EVLib/EVTime.h"
 #include <math.h>
 #include <Arduino.h>
 
@@ -15,7 +16,7 @@ int floatSize = sizeof(float);
 Throttle::Throttle(int analogToDigitalPin)
 {
     Reset();
-    beingCalibrated = false;
+    beingCalibrated = true;
     analogPin = analogToDigitalPin;
     inputResolution = pow(2, ANALOG_RES);
 }
@@ -26,6 +27,7 @@ void Throttle::SetValuesManually(float min, float max)
     highestValue = max;
     calibrationValue = max * 1.05f;
     beingCalibrated = false;
+    dontReset = true;
 }
 
 float Throttle::ReadAnalog()
@@ -59,16 +61,19 @@ void Throttle::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
-    if (currentThrottle < 0.02f) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
+    if (currentThrottle < 0.02f && !dontReset) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
     {
         Reset();
         return;
     }
 
-    if (lowestValue < 0.02f || currentThrottle < lowestValue)
+    /*if (lowestValue < 0.02f || currentThrottle < lowestValue)
         lowestValue = currentThrottle;
 
-    if (currentThrottle > calibrationValue)
+    if(lowestValue > highestValue)
+        lowestValue = highestValue;
+
+    if (currentThrottle > calibrationValue || abs(lowestValue - highestValue) < 0.05f)
     {
         calibrationValue = currentThrottle * 1.05f;
         highestValue = currentThrottle;
@@ -76,7 +81,7 @@ void Throttle::Tick()
     }
 
     if (currentThrottle < lowestValue + (highestValue - lowestValue) * 0.05f)
-        beingCalibrated = false;
+        beingCalibrated = false;*/
 }
 
  float Throttle::GetRawValue()
@@ -109,7 +114,7 @@ float Throttle::GetNormalizedThrottle()
     // Safety:
     // 1. In calibration mode the vehicle will not go if you dont release the throttle.
     // 2. There needs to be at least 25% of raw (0 to VCC) throttle travel present. Otherwise it means that it wasn't fully callibrated.
-    if (beingCalibrated || abs(highestValue - lowestValue) < 0.25f)
+    if (beingCalibrated || abs(highestValue - lowestValue) < 0.1f)
         return 0;
 
     float normalizedValue = remap01(currentThrottle, lowestValue, highestValue); // voltage remap from lowest to highest calibrated values
@@ -172,6 +177,7 @@ void ThrottleManager::PrintDebugValues()
     }
 }
 
+float lastMessage = 0;
 float ThrottleManager::GetNormalizedThrottle()
 {
     float *values = new float[throttles.size()];
@@ -189,11 +195,15 @@ float ThrottleManager::GetNormalizedThrottle()
         for (int j = i + 1; j < throttles.size(); j++)
         {
             float value = abs(values[i] - values[j]);
-            if (value > 0.13f) // derived from testing
+            if (value > 0.2f) // derived from testing
             {
                 value *= 100;
-                PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) + " detected! " +
+                if(GetTime() - lastMessage > 0.25f)
+                {
+                    lastMessage = GetTime();
+                    PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) + " detected! " +
                                    ToString((int)value) + "%");
+                }
                 delete values;
                 return 0;
             }

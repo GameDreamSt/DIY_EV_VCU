@@ -38,6 +38,7 @@ Timer timer_Frames100 = Timer(0.1f);
 Timer TimerHV = Timer(HVTimerTime);
 Timer failureTimer = Timer(3);
 Timer throttlePrintTimer = Timer(0.1f);
+Timer vacuumPrintTimer = Timer(0.1f);
 
 ThrottleManager throttleManager;
 Throttle vacuumSensor = Throttle(APIN_VACUUM);
@@ -45,6 +46,8 @@ Throttle proximityPilotSensor = Throttle(APIN_CHARGER_PP);
 float vacuumTimeOn;
 bool vacuumOn;
 bool vacuumPumpFailure;
+bool printVacuumSensorData;
+void ToggleVacuumSensorDebug() { printVacuumSensorData = !printVacuumSensorData; }
 
 Throttle* GetVacuumSensor() { return &vacuumSensor; }
 
@@ -349,8 +352,14 @@ void Initialize()
     SetContactor(PIN_DCDC_ENABLE, false);
     SetContactor(PIN_CHARGER_IGN, false);
 
-    throttleManager.AddThrottle(Throttle(APIN_Throttle1));
-    throttleManager.AddThrottle(Throttle(APIN_Throttle2));
+    Throttle throttle1 = Throttle(APIN_Throttle1);
+    throttle1.SetValuesManually(0.28f, 0.88f);
+    throttleManager.AddThrottle(throttle1);
+
+    Throttle throttle2 = Throttle(APIN_Throttle2);
+    throttle2.SetValuesManually(0.22f, 0.5f);
+    throttleManager.AddThrottle(throttle2);
+
     analogSetPinAttenuation(APIN_Throttle1, ADC_6db);
     analogSetPinAttenuation(APIN_Throttle2, ADC_2_5db);
 
@@ -726,6 +735,11 @@ void PrintDebug()
 
 void ControlVacuum()
 {
+    if(printVacuumSensorData && vacuumPrintTimer.HasTriggered())
+    {
+        vacuumSensor.PrintDebugValues();
+    }
+
     float rawValue = vacuumSensor.GetRawValue();
     if(rawValue < 0.01f || vacuumPumpFailure || !driveMode || ChargerStatusPlugInserted()) // Disconnected or failed or charging mode
     {
