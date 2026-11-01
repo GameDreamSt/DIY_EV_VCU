@@ -14,9 +14,9 @@
 #define PIN_WATER_PUMP 25 // G25 ADC, P5 Water pump activation
 #define PIN_CHARGER_IGN 26 // ADC, P7 Charger turn on signal
 #define PIN_VACUUM_PUMP 27 // G27 ADC, P4 Vacuum pump activation
-// G14 ADC JTAG
+#define PIN_RADIATOR_FAN 14 // G14 ADC JTAG
 #define PIN_DCDC_ENABLE 12 // G12 ADC STRAPPING PD FLASH BOOT, P6 DC/DC enable signal
-// G13 ADC JTAG
+#define PIN_AUXILARY 13 // G13 ADC JTAG
 // G09 ADC SD Data RX1 FLASH
 // G10 ADC SD Data TX1 FLASH
 // G11 ADC SD CMD FLASH
