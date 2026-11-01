@@ -4,6 +4,7 @@ A DIY VCU project that uses ESP32 to control the engine and other systems. The E
 # Requirements
 * ESP32
 * autowp-mcp2515 library
+* LIN master portable by Georg Icking-Konert library
 
 # Capabilities
 * Communication with the Nissan Leaf 2015 Inverter.
