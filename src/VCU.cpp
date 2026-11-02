@@ -28,10 +28,10 @@ uint8_t *outFrame = new uint8_t[8];
 
 #define HVTimerTime 0.2f
 
-TimedFilter<bool> ignitionFilter = TimedFilter<bool>(100);
-TimedFilter<bool> driveModeFilter = TimedFilter<bool>(100);
-TimedFilter<bool> brakesFilter = TimedFilter<bool>(100);
-TimedFilter<bool> reverseFilter = TimedFilter<bool>(250);
+FilterGroup<bool> ignitionFilter = FilterGroup<bool>();
+FilterGroup<bool> driveModeFilter = FilterGroup<bool>();
+FilterGroup<bool> brakesFilter = FilterGroup<bool>();
+FilterGroup<bool> reverseFilter = FilterGroup<bool>();
 
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
@@ -330,6 +330,22 @@ void Initialize()
     if (initialized)
         return;
     initialized = true;
+
+    ignitionFilter = FilterGroup<bool>();
+    ignitionFilter.AddFilter(BoolFilter(20));
+    ignitionFilter.AddFilter(TimedFilter<bool>(100));
+    
+    driveModeFilter = FilterGroup<bool>();
+    driveModeFilter.AddFilter(BoolFilter(20));
+    driveModeFilter.AddFilter(TimedFilter<bool>(100));
+
+    brakesFilter = FilterGroup<bool>();
+    brakesFilter.AddFilter(BoolFilter(20));
+    brakesFilter.AddFilter(TimedFilter<bool>(100));
+
+    reverseFilter = FilterGroup<bool>();
+    reverseFilter.AddFilter(BoolFilter(20));
+    reverseFilter.AddFilter(TimedFilter<bool>(250));
 
     pinMode(PIN_IGNITION, INPUT_PULLUP);
     pinMode(PIN_DRIVE_MODE, INPUT_PULLUP);
