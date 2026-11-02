@@ -2,7 +2,9 @@
 #include <vector>
 #include <string>
 
-class Throttle
+void SetSensorsAnalogResolution(int bits);
+
+class Sensor
 {
   private:
     float lowestValue;
@@ -20,30 +22,27 @@ class Throttle
     float GetAverageAnalog();
 
   public:
-    Throttle(int analogToDigitalPin);
+    Sensor(int analogToDigitalPin);
 
     void Tick();
     void Reset();
 
-    float GetNormalizedThrottle();
+    float GetNormalized();
     void PrintDebugValues();
     std::string GetDebugValuesString();
     float GetRawValue();
 
     void SetValuesManually(float min, float max);
-
-    std::vector<unsigned char> Save();
-    void Load(std::vector<unsigned char> data);
 };
 
 class ThrottleManager
 {
   private:
-    std::vector<Throttle> throttles;
+    std::vector<Sensor> throttles;
 
   public:
     void Tick();
-    void AddThrottle(Throttle throttle);
-    float GetNormalizedThrottle();
+    void AddThrottle(Sensor throttle);
+    float GetNormalized();
     void PrintDebugValues();
 };

@@ -1,9 +1,8 @@
 
-#include "Pinout.h"
-#include "EVLib/SerialPrint.h"
-#include "Throttle.h"
-#include "EVLib/Timer.h"
-#include "EVLib/EVTime.h"
+#include "SerialPrint.h"
+#include "Sensor.h"
+#include "Timer.h"
+#include "EVTime.h"
 #include <math.h>
 #include <Arduino.h>
 
@@ -11,17 +10,20 @@
 #define DEADZONE_LOW 0.05
 #define DEADZONE_HIGH 0.95
 
+int analogResolutionBits = 12;
 int floatSize = sizeof(float);
 
-Throttle::Throttle(int analogToDigitalPin)
+void SetSensorsAnalogResolution(int bits) { analogResolutionBits = bits; }
+
+Sensor::Sensor(int analogToDigitalPin)
 {
     Reset();
     beingCalibrated = true;
     analogPin = analogToDigitalPin;
-    inputResolution = pow(2, ANALOG_RES);
+    inputResolution = pow(2, analogResolutionBits);
 }
 
-void Throttle::SetValuesManually(float min, float max)
+void Sensor::SetValuesManually(float min, float max)
 {
     lowestValue = min;
     highestValue = max;
@@ -30,12 +32,12 @@ void Throttle::SetValuesManually(float min, float max)
     dontReset = true;
 }
 
-float Throttle::ReadAnalog()
+float Sensor::ReadAnalog()
 {
     return (float)analogRead(analogPin) / inputResolution;
 }
 
-float Throttle::GetAverageAnalog()
+float Sensor::GetAverageAnalog()
 {
     float voltage_temp_average = 0;
     for (int i = 0; i < READ_AVG; i++)
@@ -44,20 +46,20 @@ float Throttle::GetAverageAnalog()
     return voltage_temp_average / (float)READ_AVG;
 }
 
-void Throttle::PrintDebugValues()
+void Sensor::PrintDebugValues()
 {
     PrintSerialMessage(GetDebugValuesString());
 }
 
-std::string Throttle::GetDebugValuesString()
+std::string Sensor::GetDebugValuesString()
 {
     return "T" + ToString(analogPin) + ": " + ToString(currentThrottle) + 
     " " + ToString(lowestValue) + 
     " " + ToString(highestValue) + 
-    " " + ToString(GetNormalizedThrottle()) + (beingCalibrated ? " Being calibrated..." : " Calibration completed.");
+    " " + ToString(GetNormalized()) + (beingCalibrated ? " Being calibrated..." : " Calibration completed.");
 }
 
-void Throttle::Tick()
+void Sensor::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
@@ -84,12 +86,12 @@ void Throttle::Tick()
         beingCalibrated = false;*/
 }
 
- float Throttle::GetRawValue()
+ float Sensor::GetRawValue()
  {
     return currentThrottle;
  }
 
-void Throttle::Reset()
+void Sensor::Reset()
 {
     lowestValue = highestValue = calibrationValue = 0;
 }
@@ -109,7 +111,7 @@ float clamp(float x, float a, float b)
   return fmax(a, fmin(b, x));
 }
 
-float Throttle::GetNormalizedThrottle()
+float Sensor::GetNormalized()
 {
     // Safety:
     // 1. In calibration mode the vehicle will not go if you dont release the throttle.
@@ -125,37 +127,6 @@ float Throttle::GetNormalizedThrottle()
     return normalizedValue;
 }
 
-std::vector<unsigned char> Throttle::Save()
-{
-    std::vector<unsigned char> data;
-
-    data.resize(floatSize * 2);
-
-    void *dataPtr = data.data();
-    memcpy(dataPtr, &lowestValue, floatSize);
-    dataPtr += floatSize;
-    memcpy(dataPtr, &highestValue, floatSize);
-    dataPtr += floatSize;
-
-    return data;
-}
-
-void Throttle::Load(std::vector<unsigned char> data)
-{
-    if (data.size() < floatSize * 2)
-    {
-        PrintSerialMessage("Incorrect data load size for Throttle! Data: " + BytesToString(data));
-        return;
-    }
-
-    void *dataPtr = data.data();
-    memcpy(&lowestValue, dataPtr, floatSize);
-    dataPtr += floatSize;
-    memcpy(&highestValue, dataPtr, floatSize);
-    dataPtr += floatSize;
-    calibrationValue = highestValue * 1.05f;
-}
-
 // ****************************************************
 
 void ThrottleManager::Tick()
@@ -164,7 +135,7 @@ void ThrottleManager::Tick()
         throttles[i].Tick();
 }
 
-void ThrottleManager::AddThrottle(Throttle throttle)
+void ThrottleManager::AddThrottle(Sensor throttle)
 {
     throttles.push_back(throttle);
 }
@@ -178,14 +149,14 @@ void ThrottleManager::PrintDebugValues()
 }
 
 float lastMessage = 0;
-float ThrottleManager::GetNormalizedThrottle()
+float ThrottleManager::GetNormalized()
 {
     float *values = new float[throttles.size()];
     float averageValue = 0;
 
     for (int i = 0; i < throttles.size(); i++)
     {
-        values[i] = throttles[i].GetNormalizedThrottle();
+        values[i] = throttles[i].GetNormalized();
         averageValue += values[i];
     }
 

@@ -3,6 +3,7 @@
 
 #include "EVLib/CAN.h"
 #include "EVLib/Timer.h"
+#include "EVLib/Sensor.h"
 #include "EVLib/Filter.h"
 #include "EVLib/EVTime.h"
 #include "EVLib/MathUtils.h"
@@ -10,7 +11,6 @@
 #include "EVLib/SerialReader.h"
 
 #include "mcp2515.h"
-#include "Throttle.h"
 #include "Contactor.h"
 #include "OutlanderOBC.h"
 #include "LeafInverter.h"
@@ -41,15 +41,15 @@ Timer throttlePrintTimer = Timer(0.1f);
 Timer vacuumPrintTimer = Timer(0.1f);
 
 ThrottleManager throttleManager;
-Throttle vacuumSensor = Throttle(APIN_VACUUM);
-Throttle proximityPilotSensor = Throttle(APIN_CHARGER_PP);
+Sensor vacuumSensor = Sensor(APIN_VACUUM);
+Sensor proximityPilotSensor = Sensor(APIN_CHARGER_PP);
 float vacuumTimeOn;
 bool vacuumOn;
 bool vacuumPumpFailure;
 bool printVacuumSensorData;
 void ToggleVacuumSensorDebug() { printVacuumSensorData = !printVacuumSensorData; }
 
-Throttle* GetVacuumSensor() { return &vacuumSensor; }
+Sensor* GetVacuumSensor() { return &vacuumSensor; }
 
 #define LOWEST_VOLTAGE 210
 #define MAX_CHARGE_VOLTAGE 240
@@ -368,11 +368,11 @@ void Initialize()
     SetContactor(PIN_DCDC_ENABLE, false);
     SetContactor(PIN_CHARGER_IGN, false);
 
-    Throttle throttle1 = Throttle(APIN_Throttle1);
+    Sensor throttle1 = Sensor(APIN_Throttle1);
     throttle1.SetValuesManually(0.28f, 0.88f);
     throttleManager.AddThrottle(throttle1);
 
-    Throttle throttle2 = Throttle(APIN_Throttle2);
+    Sensor throttle2 = Sensor(APIN_Throttle2);
     throttle2.SetValuesManually(0.22f, 0.5f);
     throttleManager.AddThrottle(throttle2);
 
@@ -653,7 +653,7 @@ void ToggleThrottlePrintDetailed()
 
 void ReadPedals()
 {
-    float normalizedThrottle = throttleManager.GetNormalizedThrottle();
+    float normalizedThrottle = throttleManager.GetNormalized();
     int torqueRequestNm = 0;
     LeafInverter::SetTorqueNm(0); // Reset
 
@@ -737,7 +737,7 @@ void PrintDebug()
         return;
 
     if (printThrottle)
-        PrintSerialMessage(ToString(throttleManager.GetNormalizedThrottle()));
+        PrintSerialMessage(ToString(throttleManager.GetNormalized()));
 
     if(printThrottleDetailed)
         throttleManager.PrintDebugValues();

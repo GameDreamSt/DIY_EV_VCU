@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 
-class Throttle;
+class Sensor;
 
 namespace VCU
 {
@@ -22,7 +22,7 @@ namespace VCU
     bool SetRegenTorque(short value);
     bool SetRegenRPMRange(short lowRPM, short highRPM);
 
-    Throttle* GetVacuumSensor();
+    Sensor* GetVacuumSensor();
 
     void SendCustomCanMessage(unsigned int ID, unsigned char data[8]);
 

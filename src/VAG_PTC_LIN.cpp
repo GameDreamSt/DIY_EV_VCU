@@ -1,13 +1,13 @@
 
 #include "VAG_PTC_LIN.h"
 #include "Pinout.h"
-#include "Throttle.h"
 #include "HardwareSerial.h"
 
 #include "EVLib/LIN_Manager.h"
 #include "EVLib/SerialPrint.h"
 #include "EVLib/SerialReader.h"
 #include "EVLib/MathUtils.h"
+#include "EVLib/Sensor.h"
 #include "EVLib/Timer.h"
 
 #include <vector>
@@ -16,7 +16,7 @@
 using namespace std;
 
 LIN_Manager LIN;
-Throttle heatInputSensor = Throttle(PIN_AC_CONTROL);
+Sensor heatInputSensor = Sensor(PIN_AC_CONTROL);
 Timer inputTimer = Timer(0.5f);
 
 enum LIN_Message_ID
