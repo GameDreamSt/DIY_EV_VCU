@@ -41,6 +41,8 @@ Timer throttlePrintTimer = Timer(0.1f);
 Timer vacuumPrintTimer = Timer(0.1f);
 
 ThrottleManager throttleManager;
+float throttleWarmupTime;
+
 Sensor vacuumSensor = Sensor(APIN_VACUUM);
 Sensor proximityPilotSensor = Sensor(APIN_CHARGER_PP);
 float vacuumTimeOn;
@@ -375,6 +377,8 @@ void Initialize()
     Sensor throttle2 = Sensor(APIN_Throttle2);
     throttle2.SetValuesManually(0.22f, 0.5f);
     throttleManager.AddThrottle(throttle2);
+
+    throttleWarmupTime = 1;
 
     analogSetPinAttenuation(APIN_Throttle1, ADC_6db);
     analogSetPinAttenuation(APIN_Throttle2, ADC_2_5db);
@@ -789,7 +793,10 @@ void Tick()
     if (can == nullptr) // Initialize later so the upload process doesn't hang up
         can = new CAN(MKRCAN_MCP2515_CS_PIN);
 
-    throttleManager.Tick();
+    if(throttleWarmupTime > 0)
+        throttleWarmupTime -= deltaTime;
+    else
+        throttleManager.Tick();
     vacuumSensor.Tick();
     proximityPilotSensor.Tick();
 

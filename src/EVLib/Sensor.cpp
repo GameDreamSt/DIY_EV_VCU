@@ -64,19 +64,22 @@ void Sensor::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
-    if (currentThrottle < 0.02f && !manualMode) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
+    if(manualMode)
+        return;
+
+    if (currentThrottle < 0.02f) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
     {
         Reset();
         return;
     }
 
-    /*if (lowestValue < 0.02f || currentThrottle < lowestValue)
+    if (lowestValue < 0.02f || currentThrottle < lowestValue)
         lowestValue = currentThrottle;
 
     if(lowestValue > highestValue)
-        lowestValue = highestValue;
+        highestValue = lowestValue;
 
-    if (currentThrottle > calibrationValue || abs(lowestValue - highestValue) < 0.05f)
+    if (currentThrottle > calibrationValue || highestValue - lowestValue < 0.05f)
     {
         calibrationValue = currentThrottle * 1.05f;
         highestValue = currentThrottle;
@@ -84,7 +87,7 @@ void Sensor::Tick()
     }
 
     if (currentThrottle < lowestValue + (highestValue - lowestValue) * 0.05f)
-        beingCalibrated = false;*/
+        beingCalibrated = false;
 }
 
  float Sensor::GetRawValue()
