@@ -19,6 +19,7 @@ Sensor::Sensor(int analogToDigitalPin)
 {
     Reset();
     beingCalibrated = true;
+    manualMode = false;
     analogPin = analogToDigitalPin;
     inputResolution = pow(2, analogResolutionBits);
 }
@@ -29,7 +30,7 @@ void Sensor::SetValuesManually(float min, float max)
     highestValue = max;
     calibrationValue = max * 1.05f;
     beingCalibrated = false;
-    dontReset = true;
+    manualMode = true;
 }
 
 float Sensor::ReadAnalog()
@@ -63,7 +64,7 @@ void Sensor::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
-    if (currentThrottle < 0.02f && !dontReset) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
+    if (currentThrottle < 0.02f && !manualMode) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
     {
         Reset();
         return;

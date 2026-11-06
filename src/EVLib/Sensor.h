@@ -16,7 +16,7 @@ class Sensor
     float currentThrottle;
 
     bool beingCalibrated;
-    bool dontReset;
+    bool manualMode;
 
     float ReadAnalog();
     float GetAverageAnalog();
