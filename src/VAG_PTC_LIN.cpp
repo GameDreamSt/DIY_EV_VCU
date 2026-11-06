@@ -158,6 +158,8 @@ void ExtractData()
 
 void TickPTC()
 {
+    heatInputSensor.Tick();
+    
     if(inputTimer.HasTriggered())
     {
         float sensorValue = heatInputSensor.GetRawValue();
