@@ -371,11 +371,11 @@ void Initialize()
     SetContactor(PIN_CHARGER_IGN, false);
 
     Sensor throttle1 = Sensor(APIN_Throttle1);
-    throttle1.SetValuesManually(0.28f, 0.88f);
+    //throttle1.SetValuesManually(0.28f, 0.88f);
     throttleManager.AddThrottle(throttle1);
 
     Sensor throttle2 = Sensor(APIN_Throttle2);
-    throttle2.SetValuesManually(0.22f, 0.5f);
+    //throttle2.SetValuesManually(0.22f, 0.5f);
     throttleManager.AddThrottle(throttle2);
 
     throttleWarmupTime = 1;
