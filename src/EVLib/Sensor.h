@@ -27,6 +27,7 @@ class Sensor
     void Tick();
     void Reset();
 
+    bool IsBeingCalibrated();
     float GetNormalized();
     void PrintDebugValues();
     std::string GetDebugValuesString();

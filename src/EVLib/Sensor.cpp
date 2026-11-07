@@ -18,11 +18,12 @@ void SetSensorsAnalogResolution(int bits) { analogResolutionBits = bits; }
 Sensor::Sensor(int analogToDigitalPin)
 {
     Reset();
-    beingCalibrated = true;
     manualMode = false;
     analogPin = analogToDigitalPin;
     inputResolution = pow(2, analogResolutionBits);
 }
+
+bool Sensor::IsBeingCalibrated() { return beingCalibrated; }
 
 void Sensor::SetValuesManually(float min, float max)
 {
@@ -60,6 +61,7 @@ std::string Sensor::GetDebugValuesString()
     " " + ToString(GetNormalized()) + (beingCalibrated ? " Being calibrated..." : " Calibration completed.");
 }
 
+float lastTickMessage = 0;
 void Sensor::Tick()
 {
     currentThrottle = GetAverageAnalog();
@@ -69,6 +71,11 @@ void Sensor::Tick()
 
     if (currentThrottle < 0.02f) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
     {
+        if(GetTime() - lastTickMessage > 1)
+        {
+            lastTickMessage = GetTime();
+            PrintSerialMessage("Sensor was disconnected! S" + ToString(analogPin));
+        }
         Reset();
         return;
     }
@@ -76,15 +83,15 @@ void Sensor::Tick()
     if (lowestValue < 0.02f || currentThrottle < lowestValue)
         lowestValue = currentThrottle;
 
-    if(lowestValue > highestValue)
-        highestValue = lowestValue;
-
     if (currentThrottle > calibrationValue || highestValue - lowestValue < 0.05f)
     {
         calibrationValue = currentThrottle * 1.05f;
         highestValue = currentThrottle;
         beingCalibrated = true;
     }
+
+    if(lowestValue > highestValue)
+        highestValue = lowestValue;
 
     if (currentThrottle < lowestValue + (highestValue - lowestValue) * 0.05f)
         beingCalibrated = false;
@@ -98,6 +105,7 @@ void Sensor::Tick()
 void Sensor::Reset()
 {
     lowestValue = highestValue = calibrationValue = 0;
+    beingCalibrated = true;
 }
 
 float remap(float x, float in_min, float in_max, float out_min, float out_max)
@@ -121,6 +129,9 @@ float Sensor::GetNormalized()
     // 1. In calibration mode the vehicle will not go if you dont release the throttle.
     // 2. There needs to be at least 25% of raw (0 to VCC) throttle travel present. Otherwise it means that it wasn't fully callibrated.
     if (beingCalibrated || abs(highestValue - lowestValue) < 0.1f)
+        return 0;
+
+    if(lowestValue > highestValue)
         return 0;
 
     float normalizedValue = remap01(currentThrottle, lowestValue, highestValue); // voltage remap from lowest to highest calibrated values
@@ -157,11 +168,19 @@ float ThrottleManager::GetNormalized()
 {
     float *values = new float[throttles.size()];
     float averageValue = 0;
+    bool beingCalibrated = false;
 
     for (int i = 0; i < throttles.size(); i++)
     {
         values[i] = throttles[i].GetNormalized();
         averageValue += values[i];
+        beingCalibrated |= throttles[i].IsBeingCalibrated();
+    }
+
+    if(beingCalibrated)
+    {
+        delete values;
+        return 0;
     }
 
     // Check throttle deviation
@@ -173,7 +192,7 @@ float ThrottleManager::GetNormalized()
             if (value > 0.2f) // derived from testing
             {
                 value *= 100;
-                if(GetTime() - lastMessage > 0.25f)
+                if(GetTime() - lastMessage > 1)
                 {
                     lastMessage = GetTime();
                     PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) + " detected! " +
