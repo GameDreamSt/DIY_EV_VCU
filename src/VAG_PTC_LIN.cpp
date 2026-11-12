@@ -76,6 +76,7 @@ void InitializePTC()
     LIN = LIN_Manager(0);
 
     heatInputSensor.SetValuesManually(0, 1);
+    heatInputSensor.SetName("Heat");
     
     AddCommand(CommandPointer("lindebug", ToggleLINDebugMode));
     AddCommand(CommandPointer("ptcpower", SetPTCPower));
@@ -174,7 +175,10 @@ void TickPTC()
         ptcPowerRequest = heating * 100;
 
         if(inputSensorDebugMode)
+        {
             PrintSerialMessage("Cooling: " + FloatToString(cooling, 2) + " | Heating: " + FloatToString(heating, 2) + " | PTC: " + ToString(ptcPowerRequest) + "%");
+            heatInputSensor.PrintDebugValues();
+        }
     }
 
     LIN.Tick();
