@@ -7,6 +7,7 @@
 #include "EVLib/Filter.h"
 #include "EVLib/EVTime.h"
 #include "EVLib/MathUtils.h"
+#include "EVLib/ADS_Sensor.h"
 #include "EVLib/SerialPrint.h"
 #include "EVLib/SerialReader.h"
 
@@ -28,10 +29,10 @@ uint8_t *outFrame = new uint8_t[8];
 
 #define HVTimerTime 0.2f
 
-FilterGroup<bool> ignitionFilter = FilterGroup<bool>();
-FilterGroup<bool> driveModeFilter = FilterGroup<bool>();
-FilterGroup<bool> brakesFilter = FilterGroup<bool>();
-FilterGroup<bool> reverseFilter = FilterGroup<bool>();
+FilterGroup ignitionFilter;
+FilterGroup driveModeFilter;
+FilterGroup brakesFilter;
+FilterGroup reverseFilter;
 
 Timer timer_Frames10 = Timer(0.01f);
 Timer timer_Frames100 = Timer(0.1f);
@@ -43,8 +44,10 @@ Timer vacuumPrintTimer = Timer(0.1f);
 ThrottleManager throttleManager;
 float throttleWarmupTime;
 
-Sensor vacuumSensor = Sensor(APIN_VACUUM);
-Sensor proximityPilotSensor = Sensor(APIN_CHARGER_PP);
+ADS_Sensor adsSensor;
+
+Sensor vacuumSensor;
+Sensor proximityPilotSensor;
 float vacuumTimeOn;
 bool vacuumOn;
 bool vacuumPumpFailure;
@@ -326,6 +329,12 @@ void SetContactorForTesting(int value)
     }
 }
 
+bool adsDebug = false;
+void ToggleADSDebug()
+{
+    adsDebug = !adsDebug;
+}
+
 bool initialized = false;
 void Initialize()
 {
@@ -333,26 +342,26 @@ void Initialize()
         return;
     initialized = true;
 
-    ignitionFilter = FilterGroup<bool>();
-    ignitionFilter.AddFilter(BoolFilter(20));
-    ignitionFilter.AddFilter(TimedFilter<bool>(100));
+    ignitionFilter = FilterGroup();
+    ignitionFilter.AddFilter(new BoolFilter(20));
+    //ignitionFilter.AddFilter(new TimedFilter(0.1f));
     
-    driveModeFilter = FilterGroup<bool>();
-    driveModeFilter.AddFilter(BoolFilter(20));
-    driveModeFilter.AddFilter(TimedFilter<bool>(100));
+    driveModeFilter = FilterGroup();
+    driveModeFilter.AddFilter(new BoolFilter(20));
+    //driveModeFilter.AddFilter(new TimedFilter(0.1f));
 
-    brakesFilter = FilterGroup<bool>();
-    brakesFilter.AddFilter(BoolFilter(20));
-    brakesFilter.AddFilter(TimedFilter<bool>(100));
+    brakesFilter = FilterGroup();
+    brakesFilter.AddFilter(new BoolFilter(20));
+    //brakesFilter.AddFilter(new TimedFilter(0.1f));
 
-    reverseFilter = FilterGroup<bool>();
-    reverseFilter.AddFilter(BoolFilter(20));
-    reverseFilter.AddFilter(TimedFilter<bool>(250));
+    reverseFilter = FilterGroup();
+    reverseFilter.AddFilter(new BoolFilter(20));
+    //reverseFilter.AddFilter(new TimedFilter(0.25f));
 
-    pinMode(PIN_IGNITION, INPUT_PULLUP);
+    pinMode(PIN_IGNITION, INPUT);
     pinMode(PIN_DRIVE_MODE, INPUT_PULLUP);
-    pinMode(PIN_REVERSE, INPUT_PULLUP);
-    pinMode(PIN_BRAKES, INPUT_PULLUP);
+    pinMode(PIN_REVERSE, INPUT);
+    pinMode(PIN_BRAKES, INPUT);
 
     pinMode(PIN_PRECHARGE, OUTPUT);
     pinMode(PIN_NEG_CONTACTOR, OUTPUT);
@@ -370,21 +379,28 @@ void Initialize()
     SetContactor(PIN_DCDC_ENABLE, false);
     SetContactor(PIN_CHARGER_IGN, false);
 
-    Sensor throttle1 = Sensor(APIN_Throttle1);
+    adsSensor = ADS_Sensor(ADS1115::I2CAddress::Gnd, ADS1115::DataRate::SPS_64, ADS1115::Pga::FSR_4_096V);
+
+    Sensor throttle1 = Sensor([](){ return adsSensor.GetVoltage(CHANNEL_THROTTLE1);});
+    throttle1.SetName("T1");
     //throttle1.SetValuesManually(0.28f, 0.88f);
     throttleManager.AddThrottle(throttle1);
 
-    Sensor throttle2 = Sensor(APIN_Throttle2);
+    Sensor throttle2 = Sensor([](){ return adsSensor.GetVoltage(CHANNEL_THROTTLE2);});
+    throttle2.SetName("T2");
     //throttle2.SetValuesManually(0.22f, 0.5f);
     throttleManager.AddThrottle(throttle2);
 
     throttleWarmupTime = 1;
 
-    analogSetPinAttenuation(APIN_Throttle1, ADC_6db);
-    analogSetPinAttenuation(APIN_Throttle2, ADC_2_5db);
+    vacuumSensor = Sensor([](){ return adsSensor.GetVoltage(CHANNEL_VACUUM);});
+    vacuumSensor.SetName("Vac");
+    proximityPilotSensor = Sensor([](){ return adsSensor.GetVoltage(CHANNEL_PP);});
+    proximityPilotSensor.SetName("PP");
 
     AddCommand("torque", SetTorque);
     AddCommand("maxtorque", SetMaxTorque);
+    AddCommand("debugads", ToggleADSDebug);
 
     LeafInverter::Initialize();
 }
@@ -746,6 +762,9 @@ void PrintDebug()
     if(printThrottleDetailed)
         throttleManager.PrintDebugValues();
 
+    if(adsDebug)
+        adsSensor.PrintDebug();
+
     if(printPP)
     {
         auto ppStatus = GetProximityPilotStatus();
@@ -799,6 +818,8 @@ void Tick()
         throttleManager.Tick();
     vacuumSensor.Tick();
     proximityPilotSensor.Tick();
+
+    adsSensor.Tick();
 
     ReadPedals();
     ControlVacuum();
