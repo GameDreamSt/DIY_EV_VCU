@@ -3,6 +3,7 @@
 #include <string>
 
 void SetSensorsAnalogResolution(int bits);
+typedef float (*SensorFunction)();
 
 class Sensor
 {
@@ -12,17 +13,27 @@ class Sensor
     float calibrationValue;
 
     int analogPin;
+    SensorFunction sensorFunction;
+
+    int averageTimes;
     float inputResolution;
     float currentThrottle;
 
     bool beingCalibrated;
     bool manualMode;
 
+    float lastDisconnectMessage;
+    float disconnectDelay;
+
+    std::string name;
+
     float ReadAnalog();
     float GetAverageAnalog();
 
   public:
+    Sensor();
     Sensor(int analogToDigitalPin);
+    Sensor(SensorFunction func);
 
     void Tick();
     void Reset();
@@ -34,6 +45,8 @@ class Sensor
     float GetRawValue();
 
     void SetValuesManually(float min, float max);
+    void SetName(std::string name);
+    std::string GetName();
 };
 
 class ThrottleManager

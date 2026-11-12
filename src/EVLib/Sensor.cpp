@@ -1,10 +1,10 @@
 
-#include "SerialPrint.h"
-#include "Sensor.h"
-#include "Timer.h"
 #include "EVTime.h"
-#include <math.h>
+#include "Sensor.h"
+#include "SerialPrint.h"
+#include "Timer.h"
 #include <Arduino.h>
+#include <math.h>
 
 #define READ_AVG 10
 #define DEADZONE_LOW 0.05
@@ -12,18 +12,38 @@
 
 int analogResolutionBits = 12;
 int floatSize = sizeof(float);
+float lastMessage = 0;
 
-void SetSensorsAnalogResolution(int bits) { analogResolutionBits = bits; }
+void SetSensorsAnalogResolution(int bits)
+{
+    analogResolutionBits = bits;
+}
+
+Sensor::Sensor() : Sensor(-1)
+{
+}
 
 Sensor::Sensor(int analogToDigitalPin)
 {
     Reset();
+    lastDisconnectMessage = 0;
+    disconnectDelay = 1;
     manualMode = false;
     analogPin = analogToDigitalPin;
+    sensorFunction = nullptr;
     inputResolution = pow(2, analogResolutionBits);
+    averageTimes = READ_AVG;
 }
 
-bool Sensor::IsBeingCalibrated() { return beingCalibrated; }
+Sensor::Sensor(SensorFunction func) : Sensor(-1)
+{
+    sensorFunction = func;
+}
+
+bool Sensor::IsBeingCalibrated()
+{
+    return beingCalibrated;
+}
 
 void Sensor::SetValuesManually(float min, float max)
 {
@@ -41,11 +61,20 @@ float Sensor::ReadAnalog()
 
 float Sensor::GetAverageAnalog()
 {
+    if (sensorFunction != nullptr)
+        return sensorFunction();
+
+    if (analogPin < 0)
+        return 0;
+
     float voltage_temp_average = 0;
-    for (int i = 0; i < READ_AVG; i++)
+    for (int i = 0; i < averageTimes; i++)
         voltage_temp_average += ReadAnalog();
 
-    return voltage_temp_average / (float)READ_AVG;
+    if (averageTimes > 0)
+        return voltage_temp_average / (float)averageTimes;
+    else
+        return ReadAnalog();
 }
 
 void Sensor::PrintDebugValues()
@@ -55,26 +84,38 @@ void Sensor::PrintDebugValues()
 
 std::string Sensor::GetDebugValuesString()
 {
-    return "T" + ToString(analogPin) + ": " + ToString(currentThrottle) + 
-    " " + ToString(lowestValue) + 
-    " " + ToString(highestValue) + 
-    " " + ToString(GetNormalized()) + (beingCalibrated ? " Being calibrated..." : " Calibration completed.");
+    return "T" + GetName() + ": " + ToString(currentThrottle) + " " + ToString(lowestValue) + " " +
+           ToString(highestValue) + " " + ToString(calibrationValue) + " " + ToString(GetNormalized()) +
+           (beingCalibrated ? " Being calibrated..." : " Calibration completed.");
 }
 
-float lastTickMessage = 0;
+void Sensor::SetName(std::string newName)
+{
+    name = newName;
+}
+std::string Sensor::GetName()
+{
+    if (name != "")
+        return name;
+
+    return ToString(analogPin);
+}
+
 void Sensor::Tick()
 {
     currentThrottle = GetAverageAnalog();
 
-    if(manualMode)
+    if (manualMode)
         return;
 
-    if (currentThrottle < 0.02f) // If below 2% raw value, then reset. Highly likely that the connector was disconnected, either intentionally or not.
+    if (currentThrottle < 0.02f) // If below 2% raw value, then reset. Highly likely that the connector was
+                                 // disconnected, either intentionally or not.
     {
-        if(GetTime() - lastTickMessage > 1)
+        if (GetTime() - lastDisconnectMessage > disconnectDelay)
         {
-            lastTickMessage = GetTime();
-            PrintSerialMessage("Sensor was disconnected! S" + ToString(analogPin));
+            lastDisconnectMessage = GetTime();
+            disconnectDelay += 1;
+            PrintSerialMessage("Sensor was disconnected! " + GetName());
         }
         Reset();
         return;
@@ -90,17 +131,17 @@ void Sensor::Tick()
         beingCalibrated = true;
     }
 
-    if(lowestValue > highestValue)
+    if (lowestValue > highestValue)
         highestValue = lowestValue;
 
     if (currentThrottle < lowestValue + (highestValue - lowestValue) * 0.05f)
         beingCalibrated = false;
 }
 
- float Sensor::GetRawValue()
- {
+float Sensor::GetRawValue()
+{
     return currentThrottle;
- }
+}
 
 void Sensor::Reset()
 {
@@ -120,21 +161,23 @@ float remap01(float x, float in_min, float in_max)
 
 float clamp(float x, float a, float b)
 {
-  return fmax(a, fmin(b, x));
+    return fmax(a, fmin(b, x));
 }
 
 float Sensor::GetNormalized()
 {
     // Safety:
     // 1. In calibration mode the vehicle will not go if you dont release the throttle.
-    // 2. There needs to be at least 25% of raw (0 to VCC) throttle travel present. Otherwise it means that it wasn't fully callibrated.
+    // 2. There needs to be at least 25% of raw (0 to VCC) throttle travel present. Otherwise it means that it wasn't
+    // fully callibrated.
     if (beingCalibrated || abs(highestValue - lowestValue) < 0.1f)
         return 0;
 
-    if(lowestValue > highestValue)
+    if (lowestValue > highestValue)
         return 0;
 
-    float normalizedValue = remap01(currentThrottle, lowestValue, highestValue); // voltage remap from lowest to highest calibrated values
+    float normalizedValue =
+        remap01(currentThrottle, lowestValue, highestValue); // voltage remap from lowest to highest calibrated values
     normalizedValue = remap01(normalizedValue, DEADZONE_LOW, DEADZONE_HIGH); // deadzone remap
     normalizedValue = clamp(normalizedValue, 0, 1);
     // Apply throttle filters here, otherwise it's going to be linear
@@ -157,13 +200,12 @@ void ThrottleManager::AddThrottle(Sensor throttle)
 
 void ThrottleManager::PrintDebugValues()
 {
-    for(int i = 0; i < throttles.size(); i++)
+    for (int i = 0; i < throttles.size(); i++)
     {
         throttles[i].PrintDebugValues();
     }
 }
 
-float lastMessage = 0;
 float ThrottleManager::GetNormalized()
 {
     float *values = new float[throttles.size()];
@@ -177,7 +219,7 @@ float ThrottleManager::GetNormalized()
         beingCalibrated |= throttles[i].IsBeingCalibrated();
     }
 
-    if(beingCalibrated)
+    if (beingCalibrated)
     {
         delete values;
         return 0;
@@ -192,11 +234,11 @@ float ThrottleManager::GetNormalized()
             if (value > 0.2f) // derived from testing
             {
                 value *= 100;
-                if(GetTime() - lastMessage > 1)
+                if (GetTime() - lastMessage > 1)
                 {
                     lastMessage = GetTime();
-                    PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) + " detected! " +
-                                   ToString((int)value) + "%");
+                    PrintSerialMessage("Throttle deviation between T" + ToString(i) + " and T" + ToString(j) +
+                                       " detected! " + ToString((int)value) + "%");
                 }
                 delete values;
                 return 0;
