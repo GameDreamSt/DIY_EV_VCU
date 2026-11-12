@@ -1,8 +1,8 @@
 
 #include "SerialPrint.h"
 #include "Timer.h"
-#include <math.h>
 #include <Arduino.h>
+#include <math.h>
 
 #define MAX_MESSAGES 8
 
@@ -38,16 +38,38 @@ void PrintSerialMessage(string message, int intData)
 
 string FloatToString(float var, int precision)
 {
-    float multiplier = pow(10, precision);
-    string wholeNum = to_string((long)var);
+    string fullText = to_string(var);
+    int length = fullText.length();
+    int digitsCount = 0;
 
-    var = var - (float)((long)var);
-    var *= multiplier;
-    string fraction = to_string((long)var);
-    return wholeNum + "." + fraction;
+    for(int i = 0; i < length; i++)
+    {
+        if(fullText[i] == '.')
+        {
+            digitsCount = length - i - 1 - precision;
+            break;
+        }
+    }
+
+    for (int i = length - 1; i >= 0 && digitsCount > 0; i--)
+    {
+        if (fullText[i] == '.')
+        {
+            fullText.pop_back(); // Remove dot
+            break;
+        }
+
+        fullText.pop_back(); // remove last digit
+        digitsCount--;
+    }
+
+    return fullText;
 }
 
-string ToString(float var) { return FloatToString(var, 2); }
+string ToString(float var)
+{
+    return FloatToString(var, 2);
+}
 
 string ToString(int var)
 {
