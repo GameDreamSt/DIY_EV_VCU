@@ -10,20 +10,6 @@ using namespace std;
 
 bool CAN::printReceive = false;
 
-CAN::CAN(int chipSelectPin)
-{
-    mcp2515 = new MCP2515(chipSelectPin);
-
-    mcp2515->reset();
-    mcp2515->setBitrate(CAN_SPEED::CAN_500KBPS, CAN_CLOCK::MCP_8MHZ);
-    mcp2515->setNormalMode();
-}
-
-CAN::~CAN()
-{
-    delete mcp2515;
-}
-
 string ErrToStr(MCP2515::ERROR errType)
 {
     switch (errType)
@@ -51,13 +37,36 @@ string ErrToStr(MCP2515::ERROR errType)
     }
 }
 
+void PrintIfFail(MCP2515::ERROR errType, string error)
+{
+    if(errType != MCP2515::ERROR_OK)
+        PrintSerialMessage("MCP2515 " + error + " " + ErrToStr(errType));
+}
+
+CAN::CAN(int chipSelectPin)
+{
+    mcp2515 = new MCP2515(chipSelectPin);
+
+    PrintIfFail(mcp2515->reset(), "reset failed!");
+    PrintIfFail(mcp2515->setBitrate(CAN_SPEED::CAN_500KBPS, CAN_CLOCK::MCP_8MHZ), "setBirtate failed!");
+    PrintIfFail(mcp2515->setNormalMode(), "setNormalMode failed!");
+}
+
+CAN::~CAN()
+{
+    delete mcp2515;
+}
+
 bool CAN::GetCanData(can_frame &output)
 {
     MCP2515::ERROR errFlag = mcp2515->readMessage(&output);
 
-    if (errFlag != MCP2515::ERROR_OK || output.can_id == 0 || output.can_dlc == 0)
+    if(output.can_id == 0 || output.can_dlc == 0)
+        return false;
+
+    if (errFlag != MCP2515::ERROR_OK)
     {
-        // PrintSerialMessage("CAN error! " + ErrToStr(errFlag));
+        PrintIfFail(errFlag, "readMessage failed!");
         return false;
     }
 
@@ -79,5 +88,5 @@ void CAN::Transmit(int ID, uint8_t length, uint8_t *data)
     tempFrame.can_dlc = length;
     for (int i = 0; i < length; i++)
         tempFrame.data[i] = data[i];
-    mcp2515->sendMessage(&tempFrame);
+    PrintIfFail(mcp2515->sendMessage(&tempFrame), "sendMessage failed!");
 }
