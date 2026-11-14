@@ -61,7 +61,7 @@ bool CAN::GetCanData(can_frame &output)
 {
     MCP2515::ERROR errFlag = mcp2515->readMessage(&output);
 
-    if(output.can_id == 0 || output.can_dlc == 0)
+    if(output.can_id == 0 || output.can_dlc == 0 || errFlag == MCP2515::ERROR_NOMSG)
         return false;
 
     if (errFlag != MCP2515::ERROR_OK)
