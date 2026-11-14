@@ -647,6 +647,7 @@ void Msgs10ms()
     if (!can_status)
         return;
 
+    LeafInverter::Msgs10ms(can);
     OBCMsgs10Ms(can);
 }
 
@@ -792,7 +793,7 @@ void ControlVacuum()
         SetContactor(PIN_VACUUM_PUMP, true);
         vacuumOn = true;
     }
-    else if(rawValue < 0.15f)
+    else if(rawValue < 0.25f)
     {
         SetContactor(PIN_VACUUM_PUMP, false);
         vacuumOn = false;

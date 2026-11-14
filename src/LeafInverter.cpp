@@ -73,8 +73,11 @@ string LeafInverter::Stats::GetString()
 {
     return "RPM: " + ToString(rpm) + "\nMotor torque: " + ToString(motorTorque) + " nm" +
            "\nMotor power: " + FloatToString(motorPower, 1) + " kw" +
+           "\nInverter voltage: " + ToString(stats.inverterVoltage) + " V" +
            "\nInverter temperature: " + FloatToString(inverter_temperature, 2) + " C " +
-           "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C ";
+           "\nMotor temperature: " + FloatToString(motor_temperature, 2) + " C " +
+           "\nTorque request * 4: " + ToString(final_torque_request) +
+           "\nError mode: " + BoolToString(stats.error_state);
 }
 
 bool IsCanIDValid(int ID)
@@ -313,7 +316,7 @@ void LeafInverter::Msgs10ms(CAN *can)
     can->Transmit(MsgID::CmdTorque, 8, outFrame);
 
     // We need to send 0x1db here with voltage measured by inverter
-    /*int TMP_battI = stats.motorPower * 2000.0f /
+    int TMP_battI = stats.motorPower * 2000.0f /
                       (float)stats.inverterVoltage; //(Param::Get(Param::idc)) * 2;
     short TMP_battV = stats.inverterVoltage * 4;    //(Param::Get(Param::udc)) * 4;
 
@@ -330,7 +333,7 @@ void LeafInverter::Msgs10ms(CAN *can)
         counter_1db = 0;
 
     NissanCRC(outFrame);
-    can->Transmit(MsgID::RcvBatteryState, 8, outFrame);*/
+    can->Transmit(0x1db, 8, outFrame); //MsgID::RcvBatteryState
 }
 
 void LeafInverter::Msgs100ms(CAN *can)
